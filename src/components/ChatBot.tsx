@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Mic } from 'lucide-react';
-import { ChatMessage, Language } from '@/types';
+import { ChatMessage, Language, DocumentAnalysis } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface ChatBotProps {
   language: Language;
+  documentAnalysis?: DocumentAnalysis | null;
+  voiceEnabled?: boolean;
   onSpeechInput?: (text: string) => void;
 }
 
-export const ChatBot = ({ language, onSpeechInput }: ChatBotProps) => {
+export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInput }: ChatBotProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -42,25 +44,44 @@ export const ChatBot = ({ language, onSpeechInput }: ChatBotProps) => {
     addMessage(userMessage, true);
     setIsLoading(true);
 
-    // Simulate AI response
+    // Simulate AI response with document context
     setTimeout(() => {
-      const responses = {
-        EN: [
-          "I understand you're asking about this document. Based on the analysis, here's what I can tell you...",
-          "That's a great question about the document. Let me explain...",
-          "From the document analysis, this means...",
-        ],
-        HI: [
-          "मैं समझ गया हूं कि आप इस दस्तावेज के बारे में पूछ रहे हैं। विश्लेषण के आधार पर, यह है जो मैं आपको बता सकता हूं...",
-          "दस्तावेज के बारे में यह एक बहुत अच्छा प्रश्न है। मुझे समझाने दें...",
-          "दस्तावेज विश्लेषण से, इसका मतलब है...",
-        ]
-      };
+      let response = '';
       
-      const responseList = responses[language];
-      const randomResponse = responseList[Math.floor(Math.random() * responseList.length)];
+      if (documentAnalysis) {
+        // Generate contextual response based on document content
+        const contextualResponses = {
+          EN: [
+            `Based on the document analysis, ${userMessage.toLowerCase().includes('risk') ? 'the main risks include: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}.`,
+            `From the rental agreement, ${userMessage.toLowerCase().includes('deposit') ? 'the security deposit is ₹75,000 (3 months rent)' : 'this is a standard 11-month lease with specific conditions'}.`,
+            `Regarding your question about the document: ${documentAnalysis.explanations[0]?.meaning || 'The key points are covered in the highlights section.'}`
+          ],
+          HI: [
+            `दस्तावेज़ विश्लेषण के आधार पर, ${userMessage.includes('जोखिम') || userMessage.includes('खतरा') ? 'मुख्य जोखिम हैं: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}।`,
+            `किराया समझौते से, ${userMessage.includes('जमा') || userMessage.includes('डिपॉजिट') ? 'सिक्यूरिटी डिपॉजिट ₹75,000 है (3 महीने का किराया)' : 'यह एक मानक 11-महीने का लीज़ है'}।`,
+            `आपके प्रश्न के बारे में: ${documentAnalysis.explanations[0]?.meaning || 'मुख्य बिंदु हाइलाइट्स में शामिल हैं।'}`
+          ]
+        };
+        
+        const responseList = contextualResponses[language];
+        response = responseList[Math.floor(Math.random() * responseList.length)];
+      } else {
+        const fallbackResponses = {
+          EN: ["Please upload a document first for me to provide specific analysis."],
+          HI: ["कृपया पहले एक दस्तावेज़ अपलोड करें जिससे मैं विशिष्ट विश्लेषण प्रदान कर सकूं।"]
+        };
+        response = fallbackResponses[language][0];
+      }
       
-      addMessage(randomResponse, false);
+      addMessage(response, false);
+      
+      // Auto-speak response if voice is enabled
+      if (voiceEnabled && 'speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(response);
+        utterance.lang = language === 'HI' ? 'hi-IN' : 'en-US';
+        speechSynthesis.speak(utterance);
+      }
+      
       setIsLoading(false);
     }, 1500);
   };

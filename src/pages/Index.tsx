@@ -6,45 +6,77 @@ import { DocumentSummary } from '@/components/DocumentSummary';
 import { FloatingActions } from '@/components/FloatingActions';
 import { ChatBot } from '@/components/ChatBot';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { VoiceSetupDialog } from '@/components/VoiceSetupDialog';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { useVoiceMode } from '@/hooks/useVoiceMode';
+import { useIdlePrompts } from '@/hooks/useIdlePrompts';
 import { DocumentAnalysis } from '@/types';
 
-// Mock document analysis for demo
+// Enhanced mock document analysis for demo
 const mockAnalysis: DocumentAnalysis = {
-  summary: "This is a rental agreement for a 2-bedroom apartment in Mumbai. The lease is for 11 months with a monthly rent of ₹25,000. The document contains standard clauses but has some important conditions you should be aware of.",
+  overview: "This document is a comprehensive rental agreement for a 2-bedroom apartment located in Bandra West, Mumbai. The lease term is set for 11 months with a monthly rental of ₹25,000. The agreement follows standard legal frameworks but contains several specific clauses that require careful attention.\n\nThe document establishes clear responsibilities for both tenant and landlord, including maintenance obligations, payment schedules, and termination procedures. While most clauses are standard industry practice, there are some conditions that differ from typical rental agreements in Mumbai and could impact your tenancy experience.",
   highlights: [
     {
       label: 'Safe',
       emoji: '✅',
       color: 'success',
-      text: 'Standard 11-month lease agreement with clear termination conditions'
+      text: 'Standard 11-month lease agreement with clear termination conditions and proper legal framework'
+    },
+    {
+      label: 'Safe',
+      emoji: '✅', 
+      color: 'success',
+      text: 'Maintenance responsibilities clearly defined between tenant and landlord'
     },
     {
       label: 'Caution',
       emoji: '⚠️',
       color: 'warning',
-      text: 'Security deposit is 3 months rent (₹75,000) - higher than typical 2 months'
+      text: 'Security deposit is 3 months rent (₹75,000) - higher than typical 2 months standard'
+    },
+    {
+      label: 'Caution',
+      emoji: '⚠️',
+      color: 'warning', 
+      text: 'Rent increase clause allows 10% annual increment - verify market rates'
     },
     {
       label: 'Risk',
       emoji: '❌',
       color: 'destructive',
-      text: 'No pets allowed clause with penalty of ₹10,000 if violated'
+      text: 'Strict no-pets policy with ₹10,000 penalty - no exceptions mentioned'
+    },
+    {
+      label: 'Risk',
+      emoji: '❌',
+      color: 'destructive',
+      text: 'Early termination requires 2 months notice plus penalty equivalent to 1 month rent'
     }
   ],
   explanations: [
     {
-      clause: "The tenant shall not keep any pets in the premises",
-      meaning: "You cannot have any animals like dogs, cats, or birds in the apartment",
-      example: "If you get a dog later, you could be fined ₹10,000 and may have to leave"
+      clause: "The tenant shall not keep any pets in the premises without prior written consent",
+      meaning: "You cannot have any animals like dogs, cats, birds, or any other pets in the apartment unless the landlord gives you written permission",
+      example: "If you get a dog later without permission, you could be fined ₹10,000 and may face eviction proceedings"
+    },
+    {
+      clause: "Security deposit equivalent to three months advance rent shall be paid",
+      meaning: "You must pay ₹75,000 (3 × ₹25,000) as security deposit before moving in, which is refundable at the end of tenancy",
+      example: "Most Mumbai rentals ask for 2 months deposit (₹50,000), so this is ₹25,000 extra that you need to arrange"
+    },
+    {
+      clause: "Annual rent increment of 10% shall be applicable from the second year",
+      meaning: "Your rent will increase by 10% each year, so ₹25,000 becomes ₹27,500 in year 2",
+      example: "Check if 10% is reasonable - typical Mumbai increments are 5-8% annually"
     }
   ],
   actions: [
-    "Pay security deposit of ₹75,000 before moving in",
-    "Ensure you can commit to 11 months without pets",
-    "Keep all receipts for rent payments",
-    "Take photos of apartment condition before moving in"
+    "Arrange ₹75,000 security deposit (3 months) before moving in",
+    "Confirm you can commit to 11 months without keeping any pets",
+    "Verify that 10% annual rent increase is acceptable for your budget",
+    "Take detailed photos/videos of apartment condition before moving in",
+    "Keep all rent payment receipts and maintain payment records",
+    "Understand early termination costs (2 months notice + 1 month penalty)"
   ]
 };
 
@@ -52,18 +84,33 @@ const Index = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
-  const [idleTimer, setIdleTimer] = useState<NodeJS.Timeout | null>(null);
+  const [showVoiceSetup, setShowVoiceSetup] = useState(false);
+  const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
+  const [processingTimer, setProcessingTimer] = useState<NodeJS.Timeout | null>(null);
 
   const { settings, toggleSummaryLanguage, toggleVoiceLanguage, setMode } = useAppSettings();
-  const { isPlaying, toggle: toggleVoice, autoSpeak } = useVoiceMode(settings.voiceLanguage);
+  const { isPlaying, toggle: toggleVoice, autoSpeak, speak } = useVoiceMode(settings.voiceLanguage);
+  const { startIdlePrompts, stopIdlePrompts } = useIdlePrompts();
 
   // Handle file upload
   const handleFileSelect = useCallback(async (file: File) => {
+    stopIdlePrompts();
     setUploadedFile(file);
-    setIsProcessing(true);
+    setShowVoiceSetup(true);
+  }, [stopIdlePrompts]);
 
+  // Handle voice setup completion
+  const handleVoiceSetupComplete = useCallback((enableVoice: boolean, language?: string) => {
+    setShowVoiceSetup(false);
+    setVoiceModeEnabled(enableVoice);
+    if (language && language !== settings.voiceLanguage) {
+      toggleVoiceLanguage();
+    }
+    
+    setIsProcessing(true);
+    
     // Simulate processing delay
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       setAnalysis(mockAnalysis);
       setIsProcessing(false);
       
@@ -73,24 +120,33 @@ const Index = () => {
           behavior: 'smooth' 
         });
         
-        // Start idle timer for Simple mode
-        if (settings.mode === 'Simple') {
-          const timer = setTimeout(() => {
-            autoSpeak(mockAnalysis.summary);
-          }, 8000); // 8 seconds idle
-          setIdleTimer(timer);
+        // Start auto voice for Simple mode if enabled
+        if (settings.mode === 'Simple' && enableVoice) {
+          const autoTimer = setTimeout(() => {
+            const fullText = getFullSummaryText(mockAnalysis);
+            autoSpeak(fullText);
+          }, 10000); // 10 seconds idle
+          setProcessingTimer(autoTimer);
         }
       }, 500);
     }, 3000);
-  }, [settings.mode, autoSpeak]);
+  }, [settings.mode, settings.voiceLanguage, toggleVoiceLanguage, autoSpeak]);
+
+  // Get full summary text for voice reading
+  const getFullSummaryText = useCallback((analysis: DocumentAnalysis) => {
+    const overview = analysis.overview;
+    const highlights = analysis.highlights.map(h => `${h.emoji} ${h.label}: ${h.text}`).join('. ');
+    const actions = analysis.actions.join('. ');
+    return `${overview}. Key highlights: ${highlights}. What this means for you: ${actions}`;
+  }, []);
 
   // Handle voice toggle
   const handleVoiceToggle = useCallback(() => {
     if (analysis) {
-      const textToSpeak = `${analysis.summary}. Key highlights: ${analysis.highlights.map(h => `${h.emoji} ${h.label}: ${h.text}`).join('. ')}`;
+      const textToSpeak = getFullSummaryText(analysis);
       toggleVoice(textToSpeak);
     }
-  }, [analysis, toggleVoice]);
+  }, [analysis, toggleVoice, getFullSummaryText]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -117,12 +173,21 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [handleVoiceToggle, toggleSummaryLanguage, toggleVoiceLanguage]);
 
-  // Clear idle timer when user interacts
+  // Start idle prompts on home screen
+  useEffect(() => {
+    if (!uploadedFile && !analysis && !isProcessing) {
+      startIdlePrompts();
+    }
+    
+    return () => stopIdlePrompts();
+  }, [uploadedFile, analysis, isProcessing, startIdlePrompts, stopIdlePrompts]);
+
+  // Clear processing timer when user interacts
   useEffect(() => {
     const clearTimer = () => {
-      if (idleTimer) {
-        clearTimeout(idleTimer);
-        setIdleTimer(null);
+      if (processingTimer) {
+        clearTimeout(processingTimer);
+        setProcessingTimer(null);
       }
     };
 
@@ -132,9 +197,9 @@ const Index = () => {
     return () => {
       window.removeEventListener('click', clearTimer);
       window.removeEventListener('keydown', clearTimer);
-      if (idleTimer) clearTimeout(idleTimer);
+      if (processingTimer) clearTimeout(processingTimer);
     };
-  }, [idleTimer]);
+  }, [processingTimer]);
 
   return (
     <div className="min-h-screen">
@@ -195,7 +260,11 @@ const Index = () => {
             />
 
             {/* ChatBot */}
-            <ChatBot language={settings.summaryLanguage} />
+            <ChatBot 
+              language={settings.summaryLanguage}
+              documentAnalysis={analysis}
+              voiceEnabled={voiceModeEnabled && isPlaying}
+            />
 
             {/* Floating Action Buttons */}
             <FloatingActions
@@ -208,6 +277,12 @@ const Index = () => {
             />
           </div>
         )}
+
+        {/* Voice Setup Dialog */}
+        <VoiceSetupDialog
+          isOpen={showVoiceSetup}
+          onComplete={handleVoiceSetupComplete}
+        />
       </div>
     </div>
   );

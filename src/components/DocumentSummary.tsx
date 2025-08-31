@@ -35,14 +35,16 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
 
   return (
     <div className="space-y-6" id="document-summary">
-      {/* Summary Section */}
+      {/* Overview Section */}
       <div className="glass-card rounded-xl p-6">
         <h2 className="text-2xl font-bold mb-4 text-primary">
-          📄 Document Summary
+          📄 Document Overview
         </h2>
-        <p className="text-lg leading-relaxed">
-          {analysis.summary}
-        </p>
+        <div className="text-lg leading-relaxed space-y-4">
+          {analysis.overview.split('\n\n').map((paragraph, index) => (
+            <p key={index}>{paragraph}</p>
+          ))}
+        </div>
       </div>
 
       {/* Highlights Section */}

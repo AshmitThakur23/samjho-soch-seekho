@@ -18,7 +18,7 @@ export interface DocumentExplanation {
 }
 
 export interface DocumentAnalysis {
-  summary: string;
+  overview: string;
   highlights: DocumentHighlight[];
   explanations: DocumentExplanation[];
   actions: string[];

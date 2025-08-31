@@ -45,11 +45,9 @@ export const useVoiceMode = (voiceLanguage: Language) => {
     speak(text, 'EN');
     
     setTimeout(() => {
-      if (!isPlaying) {
-        speak(text, 'HI');
-      }
-    }, 3000); // Wait 3 seconds before Hindi
-  }, [speak, isPlaying]);
+      speak(text, 'HI');
+    }, 5000); // Wait 5 seconds before Hindi
+  }, [speak]);
 
   useEffect(() => {
     return () => {

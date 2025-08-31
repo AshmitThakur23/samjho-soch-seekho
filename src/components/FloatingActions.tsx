@@ -28,7 +28,7 @@ export const FloatingActions = ({
           "fab",
           isVoicePlaying && "bg-destructive"
         )}
-        title={isVoicePlaying ? "Stop Voice" : "Start Voice"}
+        title={isVoicePlaying ? "Stop Voice" : "Read Aloud"}
       >
         <Mic className={cn("w-5 h-5", isVoicePlaying && "animate-pulse")} />
       </button>
@@ -37,7 +37,7 @@ export const FloatingActions = ({
       <button
         onClick={onSummaryLanguageToggle}
         className="fab relative"
-        title={`Summary Language: ${summaryLanguage === 'EN' ? 'English' : 'Hindi'}`}
+        title="Change Summary Language"
       >
         <Globe className="w-5 h-5" />
         <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary text-secondary-foreground text-xs rounded-full flex items-center justify-center font-bold">
@@ -49,7 +49,7 @@ export const FloatingActions = ({
       <button
         onClick={onVoiceLanguageToggle}
         className="fab relative"
-        title={`Voice Language: ${voiceLanguage === 'EN' ? 'English' : 'Hindi'}`}
+        title="Change Voice Language"
       >
         <Volume2 className="w-5 h-5" />
         <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary text-secondary-foreground text-xs rounded-full flex items-center justify-center font-bold">
