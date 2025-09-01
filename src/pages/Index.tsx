@@ -88,17 +88,28 @@ const Index = () => {
   const [baseAnalysis, setBaseAnalysis] = useState<DocumentAnalysis | null>(null);
   const [showVoiceSetup, setShowVoiceSetup] = useState(false);
   const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
+  const [hasUploaded, setHasUploaded] = useState(false); // Global state flag
+  const [error, setError] = useState<string | null>(null);
 
   const { settings, toggleSummaryLanguage, toggleVoiceLanguage, setMode } = useAppSettings();
-  const { isPlaying, toggle: toggleVoice, speak } = useVoiceMode(settings.voiceLanguage);
+  const { isPlaying, toggle: toggleVoice, speak, stop } = useVoiceMode(settings.voiceLanguage);
   const { startIdlePrompts, stopIdlePrompts } = useIdlePrompts();
 
   // Handle file upload
   const handleFileSelect = useCallback(async (file: File) => {
-    stopIdlePrompts();
+    stopIdlePrompts(); // Stop idle prompts immediately
+    setHasUploaded(true); // Set upload flag to prevent further reminders
+    setError(null); // Clear any previous errors
     setUploadedFile(file);
     setShowVoiceSetup(true);
   }, [stopIdlePrompts]);
+
+  // Handle file upload errors
+  const handleFileError = useCallback((message: string) => {
+    setError(message);
+    // Clear error after 5 seconds
+    setTimeout(() => setError(null), 5000);
+  }, []);
 
   // Handle voice setup completion
   const handleVoiceSetupComplete = useCallback((enableVoice: boolean, language?: string) => {
@@ -134,13 +145,15 @@ const Index = () => {
     return `${overview}. Key highlights: ${highlights}. What this means for you: ${actions}`;
   }, []);
 
-  // Handle voice toggle
+  // Handle voice toggle - properly toggle voice mode
   const handleVoiceToggle = useCallback(() => {
-    if (analysis) {
+    if (isPlaying) {
+      stop(); // Stop voice if playing
+    } else if (analysis) {
       const textToSpeak = getFullSummaryText(analysis);
-      toggleVoice(textToSpeak);
+      speak(textToSpeak, settings.voiceLanguage); // Start voice with current language
     }
-  }, [analysis, toggleVoice, getFullSummaryText]);
+  }, [analysis, isPlaying, stop, speak, getFullSummaryText, settings.voiceLanguage]);
 
   // Handle summary language toggle
   const handleSummaryLanguageToggle = useCallback(() => {
@@ -151,6 +164,21 @@ const Index = () => {
       setAnalysis(translatedAnalysis);
     }
   }, [baseAnalysis, settings.summaryLanguage, settings.mode, toggleSummaryLanguage]);
+
+  // Handle voice language toggle with proper restart
+  const handleVoiceLanguageToggle = useCallback(() => {
+    const wasPlaying = isPlaying;
+    if (wasPlaying) stop(); // Stop current voice
+    toggleVoiceLanguage(); // Toggle language
+    if (wasPlaying && analysis) {
+      // Restart with new language after a brief delay
+      setTimeout(() => {
+        const textToSpeak = getFullSummaryText(analysis);
+        const newLanguage = settings.voiceLanguage === 'EN' ? 'HI' : 'EN';
+        speak(textToSpeak, newLanguage);
+      }, 100);
+    }
+  }, [isPlaying, stop, toggleVoiceLanguage, analysis, getFullSummaryText, settings.voiceLanguage, speak]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -168,23 +196,23 @@ const Index = () => {
           break;
         case 'j':
           e.preventDefault();
-          toggleVoiceLanguage();
+          handleVoiceLanguageToggle();
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [handleVoiceToggle, handleSummaryLanguageToggle, toggleVoiceLanguage]);
+  }, [handleVoiceToggle, handleSummaryLanguageToggle, handleVoiceLanguageToggle]);
 
-  // Start idle prompts on home screen
+  // Start idle prompts only if no file has been uploaded
   useEffect(() => {
-    if (!uploadedFile && !analysis && !isProcessing) {
+    if (!hasUploaded && !analysis && !isProcessing) {
       startIdlePrompts();
     }
     
     return () => stopIdlePrompts();
-  }, [uploadedFile, analysis, isProcessing, startIdlePrompts, stopIdlePrompts]);
+  }, [hasUploaded, analysis, isProcessing, startIdlePrompts, stopIdlePrompts]);
 
   return (
     <div className="min-h-screen">
@@ -216,7 +244,15 @@ const Index = () => {
                 <LoadingSpinner message="Analyzing document with AI..." />
               ) : (
                 <>
-                  <FileUpload onFileSelect={handleFileSelect} />
+                  <FileUpload 
+                    onFileSelect={handleFileSelect} 
+                    onError={handleFileError}
+                  />
+                  {error && (
+                    <div className="glass-card rounded-xl p-4 text-center bg-destructive/10 border border-destructive/20">
+                      <p className="text-destructive font-medium">{error}</p>
+                    </div>
+                  )}
                   <ModeSelector 
                     value={settings.mode} 
                     onChange={setMode}
@@ -258,7 +294,7 @@ const Index = () => {
               voiceLanguage={settings.voiceLanguage}
               onVoiceToggle={handleVoiceToggle}
               onSummaryLanguageToggle={handleSummaryLanguageToggle}
-              onVoiceLanguageToggle={toggleVoiceLanguage}
+              onVoiceLanguageToggle={handleVoiceLanguageToggle}
             />
           </div>
         )}

@@ -5,9 +5,10 @@ import { cn } from '@/lib/utils';
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
   disabled?: boolean;
+  onError?: (message: string) => void;
 }
 
-export const FileUpload = ({ onFileSelect, disabled }: FileUploadProps) => {
+export const FileUpload = ({ onFileSelect, disabled, onError }: FileUploadProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -29,17 +30,43 @@ export const FileUpload = ({ onFileSelect, disabled }: FileUploadProps) => {
     const files = e.dataTransfer.files;
     const file = files[0];
     
-    if (file && isValidFile(file)) {
-      onFileSelect(file);
+    if (file) {
+      if (isValidFile(file)) {
+        onFileSelect(file);
+      } else {
+        const errorMsg = "This file cannot be read, please upload again.";
+        onError?.(errorMsg);
+        // Voice feedback for error
+        if ('speechSynthesis' in window) {
+          speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(errorMsg);
+          utterance.lang = 'en-US';
+          speechSynthesis.speak(utterance);
+        }
+      }
     }
-  }, [onFileSelect, disabled]);
+  }, [onFileSelect, disabled, onError]);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && isValidFile(file)) {
-      onFileSelect(file);
+    if (file) {
+      if (isValidFile(file)) {
+        onFileSelect(file);
+      } else {
+        const errorMsg = "This file cannot be read, please upload again.";
+        onError?.(errorMsg);
+        // Voice feedback for error
+        if ('speechSynthesis' in window) {
+          speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(errorMsg);
+          utterance.lang = 'en-US';
+          speechSynthesis.speak(utterance);
+        }
+      }
     }
-  }, [onFileSelect]);
+    // Reset file input
+    e.target.value = '';
+  }, [onFileSelect, onError]);
 
   const isValidFile = (file: File) => {
     const validTypes = [
