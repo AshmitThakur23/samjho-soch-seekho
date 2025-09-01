@@ -25,23 +25,34 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
     scrollToBottom();
   }, [messages]);
 
-  const addMessage = (text: string, isUser: boolean) => {
+  const addMessage = (text: string, isUser: boolean, messageLanguage?: Language) => {
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
       text,
       isUser,
       timestamp: new Date(),
-      language,
+      language: messageLanguage || language,
     };
     setMessages(prev => [...prev, newMessage]);
+  };
+
+  // Detect language of text
+  const detectLanguage = (text: string): Language => {
+    // Simple detection based on character patterns
+    const hindiPattern = /[\u0900-\u097F]/;
+    if (hindiPattern.test(text)) {
+      return 'HI';
+    }
+    return 'EN';
   };
 
   const handleSend = async () => {
     if (!input.trim()) return;
 
     const userMessage = input.trim();
+    const questionLanguage = detectLanguage(userMessage);
     setInput('');
-    addMessage(userMessage, true);
+    addMessage(userMessage, true, questionLanguage);
     setIsLoading(true);
 
     // Simulate AI response with document context
@@ -49,7 +60,7 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
       let response = '';
       
       if (documentAnalysis) {
-        // Generate contextual response based on document content
+        // Generate contextual response based on document content in the same language as question
         const contextualResponses = {
           EN: [
             `Based on the document analysis, ${userMessage.toLowerCase().includes('risk') ? 'the main risks include: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}.`,
@@ -63,22 +74,22 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
           ]
         };
         
-        const responseList = contextualResponses[language];
+        const responseList = contextualResponses[questionLanguage];
         response = responseList[Math.floor(Math.random() * responseList.length)];
       } else {
         const fallbackResponses = {
           EN: ["Please upload a document first for me to provide specific analysis."],
           HI: ["कृपया पहले एक दस्तावेज़ अपलोड करें जिससे मैं विशिष्ट विश्लेषण प्रदान कर सकूं।"]
         };
-        response = fallbackResponses[language][0];
+        response = fallbackResponses[questionLanguage][0];
       }
       
-      addMessage(response, false);
+      addMessage(response, false, questionLanguage);
       
       // Auto-speak response if voice is enabled
       if (voiceEnabled && 'speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(response);
-        utterance.lang = language === 'HI' ? 'hi-IN' : 'en-US';
+        utterance.lang = questionLanguage === 'HI' ? 'hi-IN' : 'en-US';
         speechSynthesis.speak(utterance);
       }
       
@@ -107,6 +118,14 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
       
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
+        const detectedLang = detectLanguage(transcript);
+        
+        // Check if detected language is supported
+        if (detectedLang !== 'EN' && detectedLang !== 'HI') {
+          addMessage("Currently supported: English and Hindi. Please choose one.", false);
+          return;
+        }
+        
         setInput(transcript);
         onSpeechInput?.(transcript);
       };

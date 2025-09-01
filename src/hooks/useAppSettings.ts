@@ -17,6 +17,14 @@ export const useAppSettings = () => {
     }));
   }, []);
 
+  const setSummaryLanguage = useCallback((language: Language) => {
+    setSettings(prev => ({ ...prev, summaryLanguage: language }));
+  }, []);
+
+  const setVoiceLanguage = useCallback((language: Language) => {
+    setSettings(prev => ({ ...prev, voiceLanguage: language }));
+  }, []);
+
   const toggleVoiceLanguage = useCallback(() => {
     setSettings(prev => ({
       ...prev,
@@ -32,6 +40,8 @@ export const useAppSettings = () => {
     settings,
     toggleSummaryLanguage,
     toggleVoiceLanguage,
+    setSummaryLanguage,
+    setVoiceLanguage,
     setMode,
   };
 };

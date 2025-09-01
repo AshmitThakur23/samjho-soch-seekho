@@ -37,18 +37,6 @@ export const useVoiceMode = (voiceLanguage: Language) => {
     }
   }, [isPlaying, speak, stop]);
 
-  // Auto-speak in Simple mode with both languages
-  const autoSpeak = useCallback((text: string) => {
-    if (!text) return;
-
-    // First English, then Hindi
-    speak(text, 'EN');
-    
-    setTimeout(() => {
-      speak(text, 'HI');
-    }, 5000); // Wait 5 seconds before Hindi
-  }, [speak]);
-
   useEffect(() => {
     return () => {
       speechSynthesis.cancel();
@@ -60,6 +48,5 @@ export const useVoiceMode = (voiceLanguage: Language) => {
     speak,
     stop,
     toggle,
-    autoSpeak,
   };
 };

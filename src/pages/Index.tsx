@@ -11,6 +11,7 @@ import { useAppSettings } from '@/hooks/useAppSettings';
 import { useVoiceMode } from '@/hooks/useVoiceMode';
 import { useIdlePrompts } from '@/hooks/useIdlePrompts';
 import { DocumentAnalysis } from '@/types';
+import { translateAnalysis } from '@/utils/documentTranslator';
 
 // Enhanced mock document analysis for demo
 const mockAnalysis: DocumentAnalysis = {
@@ -84,12 +85,12 @@ const Index = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
+  const [baseAnalysis, setBaseAnalysis] = useState<DocumentAnalysis | null>(null);
   const [showVoiceSetup, setShowVoiceSetup] = useState(false);
   const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
-  const [processingTimer, setProcessingTimer] = useState<NodeJS.Timeout | null>(null);
 
   const { settings, toggleSummaryLanguage, toggleVoiceLanguage, setMode } = useAppSettings();
-  const { isPlaying, toggle: toggleVoice, autoSpeak, speak } = useVoiceMode(settings.voiceLanguage);
+  const { isPlaying, toggle: toggleVoice, speak } = useVoiceMode(settings.voiceLanguage);
   const { startIdlePrompts, stopIdlePrompts } = useIdlePrompts();
 
   // Handle file upload
@@ -111,7 +112,9 @@ const Index = () => {
     
     // Simulate processing delay
     const timer = setTimeout(() => {
-      setAnalysis(mockAnalysis);
+      setBaseAnalysis(mockAnalysis);
+      const translatedAnalysis = translateAnalysis(mockAnalysis, settings.summaryLanguage, settings.mode);
+      setAnalysis(translatedAnalysis);
       setIsProcessing(false);
       
       // Focus summary card after processing
@@ -119,18 +122,9 @@ const Index = () => {
         document.getElementById('document-summary')?.scrollIntoView({ 
           behavior: 'smooth' 
         });
-        
-        // Start auto voice for Simple mode if enabled
-        if (settings.mode === 'Simple' && enableVoice) {
-          const autoTimer = setTimeout(() => {
-            const fullText = getFullSummaryText(mockAnalysis);
-            autoSpeak(fullText);
-          }, 10000); // 10 seconds idle
-          setProcessingTimer(autoTimer);
-        }
       }, 500);
     }, 3000);
-  }, [settings.mode, settings.voiceLanguage, toggleVoiceLanguage, autoSpeak]);
+  }, [settings.summaryLanguage, settings.mode, settings.voiceLanguage, toggleVoiceLanguage]);
 
   // Get full summary text for voice reading
   const getFullSummaryText = useCallback((analysis: DocumentAnalysis) => {
@@ -148,6 +142,16 @@ const Index = () => {
     }
   }, [analysis, toggleVoice, getFullSummaryText]);
 
+  // Handle summary language toggle
+  const handleSummaryLanguageToggle = useCallback(() => {
+    if (baseAnalysis) {
+      toggleSummaryLanguage();
+      const newLanguage = settings.summaryLanguage === 'EN' ? 'HI' : 'EN';
+      const translatedAnalysis = translateAnalysis(baseAnalysis, newLanguage, settings.mode);
+      setAnalysis(translatedAnalysis);
+    }
+  }, [baseAnalysis, settings.summaryLanguage, settings.mode, toggleSummaryLanguage]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -160,7 +164,7 @@ const Index = () => {
           break;
         case 'l':
           e.preventDefault();
-          toggleSummaryLanguage();
+          handleSummaryLanguageToggle();
           break;
         case 'j':
           e.preventDefault();
@@ -171,7 +175,7 @@ const Index = () => {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [handleVoiceToggle, toggleSummaryLanguage, toggleVoiceLanguage]);
+  }, [handleVoiceToggle, handleSummaryLanguageToggle, toggleVoiceLanguage]);
 
   // Start idle prompts on home screen
   useEffect(() => {
@@ -181,25 +185,6 @@ const Index = () => {
     
     return () => stopIdlePrompts();
   }, [uploadedFile, analysis, isProcessing, startIdlePrompts, stopIdlePrompts]);
-
-  // Clear processing timer when user interacts
-  useEffect(() => {
-    const clearTimer = () => {
-      if (processingTimer) {
-        clearTimeout(processingTimer);
-        setProcessingTimer(null);
-      }
-    };
-
-    window.addEventListener('click', clearTimer);
-    window.addEventListener('keydown', clearTimer);
-    
-    return () => {
-      window.removeEventListener('click', clearTimer);
-      window.removeEventListener('keydown', clearTimer);
-      if (processingTimer) clearTimeout(processingTimer);
-    };
-  }, [processingTimer]);
 
   return (
     <div className="min-h-screen">
@@ -272,7 +257,7 @@ const Index = () => {
               summaryLanguage={settings.summaryLanguage}
               voiceLanguage={settings.voiceLanguage}
               onVoiceToggle={handleVoiceToggle}
-              onSummaryLanguageToggle={toggleSummaryLanguage}
+              onSummaryLanguageToggle={handleSummaryLanguageToggle}
               onVoiceLanguageToggle={toggleVoiceLanguage}
             />
           </div>
