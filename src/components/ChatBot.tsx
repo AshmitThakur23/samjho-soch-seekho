@@ -8,9 +8,10 @@ interface ChatBotProps {
   documentAnalysis?: DocumentAnalysis | null;
   voiceEnabled?: boolean;
   onSpeechInput?: (text: string) => void;
+  currentDocument?: File | null;
 }
 
-export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInput }: ChatBotProps) => {
+export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInput, currentDocument }: ChatBotProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -55,34 +56,36 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
     addMessage(userMessage, true, questionLanguage);
     setIsLoading(true);
 
-    // Simulate AI response with document context
+    // Check if current document is available
+    if (!currentDocument || !documentAnalysis) {
+      const noDocResponse = questionLanguage === 'HI' 
+        ? 'कृपया पहले एक दस्तावेज़ अपलोड करें।'
+        : 'Please upload a document first.';
+      addMessage(noDocResponse, false, questionLanguage);
+      setIsLoading(false);
+      return;
+    }
+
+    // Simulate AI response with current document context
     setTimeout(() => {
       let response = '';
       
-      if (documentAnalysis) {
-        // Generate contextual response based on document content in the same language as question
-        const contextualResponses = {
-          EN: [
-            `Based on the document analysis, ${userMessage.toLowerCase().includes('risk') ? 'the main risks include: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}.`,
-            `From the rental agreement, ${userMessage.toLowerCase().includes('deposit') ? 'the security deposit is ₹75,000 (3 months rent)' : 'this is a standard 11-month lease with specific conditions'}.`,
-            `Regarding your question about the document: ${documentAnalysis.explanations[0]?.meaning || 'The key points are covered in the highlights section.'}`
-          ],
-          HI: [
-            `दस्तावेज़ विश्लेषण के आधार पर, ${userMessage.includes('जोखिम') || userMessage.includes('खतरा') ? 'मुख्य जोखिम हैं: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}।`,
-            `किराया समझौते से, ${userMessage.includes('जमा') || userMessage.includes('डिपॉजिट') ? 'सिक्यूरिटी डिपॉजिट ₹75,000 है (3 महीने का किराया)' : 'यह एक मानक 11-महीने का लीज़ है'}।`,
-            `आपके प्रश्न के बारे में: ${documentAnalysis.explanations[0]?.meaning || 'मुख्य बिंदु हाइलाइट्स में शामिल हैं।'}`
-          ]
-        };
-        
-        const responseList = contextualResponses[questionLanguage];
-        response = responseList[Math.floor(Math.random() * responseList.length)];
-      } else {
-        const fallbackResponses = {
-          EN: ["Please upload a document first for me to provide specific analysis."],
-          HI: ["कृपया पहले एक दस्तावेज़ अपलोड करें जिससे मैं विशिष्ट विश्लेषण प्रदान कर सकूं।"]
-        };
-        response = fallbackResponses[questionLanguage][0];
-      }
+      // Generate contextual response based on current document content in the same language as question
+      const contextualResponses = {
+        EN: [
+          `Based on the document analysis, ${userMessage.toLowerCase().includes('risk') ? 'the main risks include: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}.`,
+          `From the rental agreement, ${userMessage.toLowerCase().includes('deposit') ? 'the security deposit is ₹75,000 (3 months rent)' : 'this is a standard 11-month lease with specific conditions'}.`,
+          `Regarding your question about the document: ${documentAnalysis.explanations[0]?.meaning || 'The key points are covered in the highlights section.'}`
+        ],
+        HI: [
+          `दस्तावेज़ विश्लेषण के आधार पर, ${userMessage.includes('जोखिम') || userMessage.includes('खतरा') ? 'मुख्य जोखिम हैं: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}।`,
+          `किराया समझौते से, ${userMessage.includes('जमा') || userMessage.includes('डिपॉजिट') ? 'सिक्यूरिटी डिपॉजिट ₹75,000 है (3 महीने का किराया)' : 'यह एक मानक 11-महीने का लीज़ है'}।`,
+          `आपके प्रश्न के बारे में: ${documentAnalysis.explanations[0]?.meaning || 'मुख्य बिंदु हाइलाइट्स में शामिल हैं।'}`
+        ]
+      };
+      
+      const responseList = contextualResponses[questionLanguage];
+      response = responseList[Math.floor(Math.random() * responseList.length)];
       
       addMessage(response, false, questionLanguage);
       

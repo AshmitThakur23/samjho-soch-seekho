@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import heroBackground from '@/assets/hero-background.jpg';
 import { FileUpload } from '@/components/FileUpload';
 import { ModeSelector } from '@/components/ModeSelector';
@@ -9,7 +10,6 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { VoiceSetupDialog } from '@/components/VoiceSetupDialog';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { useVoiceMode } from '@/hooks/useVoiceMode';
-import { useIdlePrompts } from '@/hooks/useIdlePrompts';
 import { DocumentAnalysis } from '@/types';
 import { translateAnalysis } from '@/utils/documentTranslator';
 
@@ -82,27 +82,31 @@ const mockAnalysis: DocumentAnalysis = {
 };
 
 const Index = () => {
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [currentDocument, setCurrentDocument] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
   const [baseAnalysis, setBaseAnalysis] = useState<DocumentAnalysis | null>(null);
   const [showVoiceSetup, setShowVoiceSetup] = useState(false);
   const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
-  const [hasUploaded, setHasUploaded] = useState(false); // Global state flag
   const [error, setError] = useState<string | null>(null);
 
   const { settings, toggleSummaryLanguage, toggleVoiceLanguage, setMode } = useAppSettings();
   const { isPlaying, toggle: toggleVoice, speak, stop } = useVoiceMode(settings.voiceLanguage);
-  const { startIdlePrompts, stopIdlePrompts } = useIdlePrompts();
 
-  // Handle file upload
+  // Handle file upload - clear previous data and set new document
   const handleFileSelect = useCallback(async (file: File) => {
-    stopIdlePrompts(); // Stop idle prompts immediately
-    setHasUploaded(true); // Set upload flag to prevent further reminders
-    setError(null); // Clear any previous errors
-    setUploadedFile(file);
+    setError(null);
+    // Clear previous document data
+    setCurrentDocument(null);
+    setAnalysis(null);
+    setBaseAnalysis(null);
+    setVoiceModeEnabled(false);
+    stop(); // Stop any ongoing voice
+    
+    // Set new document and show voice setup
+    setCurrentDocument(file);
     setShowVoiceSetup(true);
-  }, [stopIdlePrompts]);
+  }, [stop]);
 
   // Handle file upload errors
   const handleFileError = useCallback((message: string) => {
@@ -123,10 +127,24 @@ const Index = () => {
     
     // Simulate processing delay
     const timer = setTimeout(() => {
+      if (!currentDocument) {
+        setError("No document found. Please upload again.");
+        setIsProcessing(false);
+        return;
+      }
+      
       setBaseAnalysis(mockAnalysis);
       const translatedAnalysis = translateAnalysis(mockAnalysis, settings.summaryLanguage, settings.mode);
       setAnalysis(translatedAnalysis);
       setIsProcessing(false);
+      
+      // If voice mode enabled, start reading after processing
+      if (enableVoice && translatedAnalysis) {
+        setTimeout(() => {
+          const textToSpeak = getFullSummaryText(translatedAnalysis);
+          speak(textToSpeak, language === 'HI' ? 'HI' : 'EN');
+        }, 1000);
+      }
       
       // Focus summary card after processing
       setTimeout(() => {
@@ -135,7 +153,18 @@ const Index = () => {
         });
       }, 500);
     }, 3000);
-  }, [settings.summaryLanguage, settings.mode, settings.voiceLanguage, toggleVoiceLanguage]);
+  }, [settings.summaryLanguage, settings.mode, settings.voiceLanguage, toggleVoiceLanguage, currentDocument, speak]);
+  
+  // Handle back to upload
+  const handleBackToUpload = useCallback(() => {
+    // Clear all document data and reset state
+    setCurrentDocument(null);
+    setAnalysis(null);
+    setBaseAnalysis(null);
+    setVoiceModeEnabled(false);
+    setError(null);
+    stop(); // Stop any ongoing voice
+  }, [stop]);
 
   // Get full summary text for voice reading
   const getFullSummaryText = useCallback((analysis: DocumentAnalysis) => {
@@ -145,32 +174,32 @@ const Index = () => {
     return `${overview}. Key highlights: ${highlights}. What this means for you: ${actions}`;
   }, []);
 
-  // Handle voice toggle - properly toggle voice mode
+  // Handle voice toggle - toggle voice reading of current summary
   const handleVoiceToggle = useCallback(() => {
     if (isPlaying) {
       stop(); // Stop voice if playing
-    } else if (analysis) {
+    } else if (analysis && currentDocument) {
       const textToSpeak = getFullSummaryText(analysis);
       speak(textToSpeak, settings.voiceLanguage); // Start voice with current language
     }
-  }, [analysis, isPlaying, stop, speak, getFullSummaryText, settings.voiceLanguage]);
+  }, [analysis, currentDocument, isPlaying, stop, speak, getFullSummaryText, settings.voiceLanguage]);
 
-  // Handle summary language toggle
+  // Handle summary language toggle - re-translate entire summary for current document
   const handleSummaryLanguageToggle = useCallback(() => {
-    if (baseAnalysis) {
+    if (baseAnalysis && currentDocument) {
       toggleSummaryLanguage();
       const newLanguage = settings.summaryLanguage === 'EN' ? 'HI' : 'EN';
       const translatedAnalysis = translateAnalysis(baseAnalysis, newLanguage, settings.mode);
       setAnalysis(translatedAnalysis);
     }
-  }, [baseAnalysis, settings.summaryLanguage, settings.mode, toggleSummaryLanguage]);
+  }, [baseAnalysis, currentDocument, settings.summaryLanguage, settings.mode, toggleSummaryLanguage]);
 
-  // Handle voice language toggle with proper restart
+  // Handle voice language toggle - switch TTS language and restart if playing
   const handleVoiceLanguageToggle = useCallback(() => {
     const wasPlaying = isPlaying;
     if (wasPlaying) stop(); // Stop current voice
     toggleVoiceLanguage(); // Toggle language
-    if (wasPlaying && analysis) {
+    if (wasPlaying && analysis && currentDocument) {
       // Restart with new language after a brief delay
       setTimeout(() => {
         const textToSpeak = getFullSummaryText(analysis);
@@ -178,7 +207,7 @@ const Index = () => {
         speak(textToSpeak, newLanguage);
       }, 100);
     }
-  }, [isPlaying, stop, toggleVoiceLanguage, analysis, getFullSummaryText, settings.voiceLanguage, speak]);
+  }, [isPlaying, stop, toggleVoiceLanguage, analysis, currentDocument, getFullSummaryText, settings.voiceLanguage, speak]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -205,14 +234,12 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [handleVoiceToggle, handleSummaryLanguageToggle, handleVoiceLanguageToggle]);
 
-  // Start idle prompts only if no file has been uploaded
+  // Cleanup voice on unmount
   useEffect(() => {
-    if (!hasUploaded && !analysis && !isProcessing) {
-      startIdlePrompts();
-    }
-    
-    return () => stopIdlePrompts();
-  }, [hasUploaded, analysis, isProcessing, startIdlePrompts, stopIdlePrompts]);
+    return () => {
+      stop();
+    };
+  }, [stop]);
 
   return (
     <div className="min-h-screen">
@@ -264,13 +291,20 @@ const Index = () => {
         ) : (
           // Document Analysis View
           <div className="py-8">
-            {/* Header */}
-            <div className="text-center mb-8">
+            {/* Header with Back Button */}
+            <div className="text-center mb-8 relative">
+              <button
+                onClick={handleBackToUpload}
+                className="absolute left-0 top-0 p-2 rounded-lg bg-background/80 hover:bg-background border border-border transition-colors"
+                title="Back to Upload"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
               <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 SamjhoDocs
               </h1>
               <p className="text-muted-foreground">
-                Analysis complete • {settings.mode} Mode • {uploadedFile?.name}
+                Analysis complete • {settings.mode} Mode • {currentDocument?.name}
               </p>
             </div>
 
@@ -285,6 +319,7 @@ const Index = () => {
               language={settings.summaryLanguage}
               documentAnalysis={analysis}
               voiceEnabled={voiceModeEnabled && isPlaying}
+              currentDocument={currentDocument}
             />
 
             {/* Floating Action Buttons */}
