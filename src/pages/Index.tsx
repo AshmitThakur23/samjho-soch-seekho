@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import heroBackground from '@/assets/hero-background.jpg';
 import { FileUpload } from '@/components/FileUpload';
 import { ModeSelector } from '@/components/ModeSelector';
 import { DocumentSummary } from '@/components/DocumentSummary';
@@ -93,19 +92,26 @@ const Index = () => {
   const { settings, toggleSummaryLanguage, toggleVoiceLanguage, setMode } = useAppSettings();
   const { isPlaying, toggle: toggleVoice, speak, stop } = useVoiceMode(settings.voiceLanguage);
 
-  // Handle file upload - clear previous data and set new document
+  // Handle file upload - completely clear all previous data
   const handleFileSelect = useCallback(async (file: File) => {
     setError(null);
-    // Clear previous document data
+    
+    // IMMEDIATELY clear ALL previous document data
     setCurrentDocument(null);
     setAnalysis(null);
     setBaseAnalysis(null);
     setVoiceModeEnabled(false);
     stop(); // Stop any ongoing voice
     
-    // Set new document and show voice setup
-    setCurrentDocument(file);
-    setShowVoiceSetup(true);
+    // Add loading delay to prevent overlap
+    setIsProcessing(true);
+    
+    // Short delay to ensure state is cleared
+    setTimeout(() => {
+      setCurrentDocument(file);
+      setIsProcessing(false);
+      setShowVoiceSetup(true);
+    }, 500);
   }, [stop]);
 
   // Handle file upload errors
@@ -115,7 +121,7 @@ const Index = () => {
     setTimeout(() => setError(null), 5000);
   }, []);
 
-  // Handle voice setup completion
+  // Handle voice setup completion - generate fresh analysis for current document
   const handleVoiceSetupComplete = useCallback((enableVoice: boolean, language?: string) => {
     setShowVoiceSetup(false);
     setVoiceModeEnabled(enableVoice);
@@ -123,18 +129,25 @@ const Index = () => {
       toggleVoiceLanguage();
     }
     
+    // Start processing with current document
+    if (!currentDocument) {
+      setError("No document found. Please upload again.");
+      return;
+    }
+    
     setIsProcessing(true);
     
-    // Simulate processing delay
+    // Generate fresh analysis for the current document
     const timer = setTimeout(() => {
-      if (!currentDocument) {
-        setError("No document found. Please upload again.");
-        setIsProcessing(false);
-        return;
-      }
+      // Create fresh analysis (in real app, this would process currentDocument)
+      const freshAnalysis = {
+        ...mockAnalysis,
+        // Add document name to verify it's fresh
+        overview: `Document: ${currentDocument.name}. ${mockAnalysis.overview}`
+      };
       
-      setBaseAnalysis(mockAnalysis);
-      const translatedAnalysis = translateAnalysis(mockAnalysis, settings.summaryLanguage, settings.mode);
+      setBaseAnalysis(freshAnalysis);
+      const translatedAnalysis = translateAnalysis(freshAnalysis, settings.summaryLanguage, settings.mode);
       setAnalysis(translatedAnalysis);
       setIsProcessing(false);
       
@@ -152,17 +165,18 @@ const Index = () => {
           behavior: 'smooth' 
         });
       }, 500);
-    }, 3000);
+    }, 2000); // Reduced time for better UX
   }, [settings.summaryLanguage, settings.mode, settings.voiceLanguage, toggleVoiceLanguage, currentDocument, speak]);
   
-  // Handle back to upload
+  // Handle back to upload - completely reset all state
   const handleBackToUpload = useCallback(() => {
-    // Clear all document data and reset state
+    // Clear ALL document data and reset to initial state
     setCurrentDocument(null);
     setAnalysis(null);
     setBaseAnalysis(null);
     setVoiceModeEnabled(false);
     setError(null);
+    setIsProcessing(false);
     stop(); // Stop any ongoing voice
   }, [stop]);
 
@@ -243,11 +257,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen">
-      {/* Fixed Background */}
-      <div 
-        className="hero-bg"
-        style={{ backgroundImage: `url(${heroBackground})` }}
-      />
+      {/* Live Animated Background */}
+      <div className="hero-bg" />
       <div className="hero-overlay" />
 
       {/* Main Content */}
@@ -268,34 +279,43 @@ const Index = () => {
             {/* Upload and Mode Selection */}
             <div className="space-y-6">
               {isProcessing ? (
-                <LoadingSpinner message="Analyzing document with AI..." />
+                <div className="glass-card rounded-xl p-8 text-center animate-fade-in">
+                  <LoadingSpinner message="Analyzing document..." />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Clearing previous data and processing new file...
+                  </p>
+                </div>
               ) : (
                 <>
-                  <FileUpload 
-                    onFileSelect={handleFileSelect} 
-                    onError={handleFileError}
-                  />
+                  <div className="animate-fade-in">
+                    <FileUpload 
+                      onFileSelect={handleFileSelect} 
+                      onError={handleFileError}
+                    />
+                  </div>
                   {error && (
-                    <div className="glass-card rounded-xl p-4 text-center bg-destructive/10 border border-destructive/20">
+                    <div className="glass-card rounded-xl p-4 text-center bg-destructive/10 border border-destructive/20 animate-scale-in">
                       <p className="text-destructive font-medium">{error}</p>
                     </div>
                   )}
-                  <ModeSelector 
-                    value={settings.mode} 
-                    onChange={setMode}
-                  />
+                  <div className="animate-fade-in">
+                    <ModeSelector 
+                      value={settings.mode} 
+                      onChange={setMode}
+                    />
+                  </div>
                 </>
               )}
             </div>
           </div>
         ) : (
           // Document Analysis View
-          <div className="py-8">
+          <div className="py-8 animate-fade-in">
             {/* Header with Back Button */}
             <div className="text-center mb-8 relative">
               <button
                 onClick={handleBackToUpload}
-                className="absolute left-0 top-0 p-2 rounded-lg bg-background/80 hover:bg-background border border-border transition-colors"
+                className="absolute left-0 top-0 p-2 rounded-lg bg-background/80 hover:bg-background border border-border transition-all duration-200 hover:scale-105"
                 title="Back to Upload"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -305,6 +325,9 @@ const Index = () => {
               </h1>
               <p className="text-muted-foreground">
                 Analysis complete • {settings.mode} Mode • {currentDocument?.name}
+              </p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                Document processed: {new Date().toLocaleTimeString()}
               </p>
             </div>
 
