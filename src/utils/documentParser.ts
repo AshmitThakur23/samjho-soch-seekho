@@ -13,8 +13,10 @@ export const parseDocument = async (file: File): Promise<string> => {
       return await parseDOCX(file);
     } else if (type.includes('text') || name.endsWith('.txt')) {
       return await parseTXT(file);
+    } else if (type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(name)) {
+      return await parseImage(file);
     } else {
-      throw new Error('Unsupported file type. Please upload PDF, DOCX, or TXT files.');
+      throw new Error('Unsupported file type. Please upload PDF, DOCX, TXT, or image files.');
     }
   } catch (error) {
     console.error('Document parsing error:', error);
@@ -23,16 +25,15 @@ export const parseDocument = async (file: File): Promise<string> => {
 };
 
 const parsePDF = async (file: File): Promise<string> => {
-  // Parse PDF in the browser using pdfjs-dist with a Web Worker
+  // Parse PDF in the browser using pdfjs-dist legacy ESM + Web Worker (Vite-friendly)
   const arrayBuffer = await file.arrayBuffer();
   const [{ getDocument, GlobalWorkerOptions }, workerModule] = await Promise.all([
-    import('pdfjs-dist'),
-    import('pdfjs-dist/build/pdf.worker?worker')
+    import('pdfjs-dist/legacy/build/pdf.mjs'),
+    import('pdfjs-dist/legacy/build/pdf.worker.mjs?worker')
   ]);
 
   // Bind worker to pdf.js
   const w = new workerModule.default();
-  // Assign worker port for pdfjs to use in-browser parsing
   (GlobalWorkerOptions as any).workerPort = w;
 
   const loadingTask = getDocument({ data: arrayBuffer });
@@ -74,6 +75,18 @@ const parseTXT = async (file: File): Promise<string> => {
     reader.onerror = () => reject(new Error('Error reading file'));
     reader.readAsText(file);
   });
+};
+
+// Basic OCR for image files using Tesseract.js
+const parseImage = async (file: File): Promise<string> => {
+  const { recognize } = await import('tesseract.js');
+  const blobUrl = URL.createObjectURL(file);
+  try {
+    const { data } = await recognize(blobUrl, 'eng');
+    return (data?.text || '').trim();
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
 };
 
 // AI-powered document analysis

@@ -72,11 +72,12 @@ export const FileUpload = ({ onFileSelect, disabled, onError }: FileUploadProps)
     const validTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
       'image/jpeg',
       'image/png',
       'image/webp'
     ];
-    return validTypes.includes(file.type);
+    return validTypes.includes(file.type) || /\.(pdf|docx|txt|png|jpe?g|webp)$/i.test(file.name);
   };
 
   return (
@@ -96,7 +97,7 @@ export const FileUpload = ({ onFileSelect, disabled, onError }: FileUploadProps)
         <input
           type="file"
           id="file-upload"
-          accept=".pdf,.docx,.jpg,.jpeg,.png,.webp"
+          accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,.webp"
           onChange={handleFileChange}
           disabled={disabled}
           className="hidden"
@@ -125,7 +126,7 @@ export const FileUpload = ({ onFileSelect, disabled, onError }: FileUploadProps)
               <div className="flex items-center justify-center space-x-4 text-sm text-muted-foreground">
                 <div className="flex items-center space-x-1">
                   <FileText className="w-4 h-4" />
-                  <span>PDF, DOCX</span>
+                  <span>PDF, DOCX, TXT</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Image className="w-4 h-4" />
