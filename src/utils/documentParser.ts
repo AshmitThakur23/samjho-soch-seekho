@@ -2,14 +2,16 @@ import { DocumentAnalysis } from '@/types';
 
 // Document parsing utilities
 export const parseDocument = async (file: File): Promise<string> => {
-  const fileType = file.type;
+  // Prefer MIME type; fall back to file extension when missing
+  const type = (file.type || '').toLowerCase();
+  const name = file.name.toLowerCase();
   
   try {
-    if (fileType === 'application/pdf') {
+    if (type.includes('pdf') || name.endsWith('.pdf')) {
       return await parsePDF(file);
-    } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    } else if (type.includes('word') || name.endsWith('.docx')) {
       return await parseDOCX(file);
-    } else if (fileType === 'text/plain') {
+    } else if (type.includes('text') || name.endsWith('.txt')) {
       return await parseTXT(file);
     } else {
       throw new Error('Unsupported file type. Please upload PDF, DOCX, or TXT files.');
@@ -21,15 +23,39 @@ export const parseDocument = async (file: File): Promise<string> => {
 };
 
 const parsePDF = async (file: File): Promise<string> => {
-  // Use dynamic import for client-side parsing
-  const pdfParse = await import('pdf-parse/lib/pdf-parse');
+  // Parse PDF in the browser using pdfjs-dist with a Web Worker
   const arrayBuffer = await file.arrayBuffer();
-  const data = await pdfParse.default(arrayBuffer);
-  return data.text;
+  const [{ getDocument, GlobalWorkerOptions }, workerModule] = await Promise.all([
+    import('pdfjs-dist'),
+    import('pdfjs-dist/build/pdf.worker?worker')
+  ]);
+
+  // Bind worker to pdf.js
+  const w = new workerModule.default();
+  // Assign worker port for pdfjs to use in-browser parsing
+  (GlobalWorkerOptions as any).workerPort = w;
+
+  const loadingTask = getDocument({ data: arrayBuffer });
+  const pdf = await loadingTask.promise;
+
+  let fullText = '';
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    const strings = (content.items as any[]).map((it: any) => it.str || '').filter(Boolean);
+    fullText += strings.join(' ') + '\n';
+  }
+
+  return fullText.trim();
 };
 
 const parseDOCX = async (file: File): Promise<string> => {
-  const mammoth = await import('mammoth');
+  let mammoth: any;
+  try {
+    mammoth = await import('mammoth/mammoth.browser');
+  } catch {
+    mammoth = await import('mammoth');
+  }
   const arrayBuffer = await file.arrayBuffer();
   const result = await mammoth.extractRawText({ arrayBuffer });
   return result.value;
