@@ -11,77 +11,11 @@ import { useAppSettings } from '@/hooks/useAppSettings';
 import { useVoiceMode } from '@/hooks/useVoiceMode';
 import { DocumentAnalysis } from '@/types';
 import { translateAnalysis } from '@/utils/documentTranslator';
-
-// Enhanced mock document analysis for demo
-const mockAnalysis: DocumentAnalysis = {
-  overview: "This document is a comprehensive rental agreement for a 2-bedroom apartment located in Bandra West, Mumbai. The lease term is set for 11 months with a monthly rental of ₹25,000. The agreement follows standard legal frameworks but contains several specific clauses that require careful attention.\n\nThe document establishes clear responsibilities for both tenant and landlord, including maintenance obligations, payment schedules, and termination procedures. While most clauses are standard industry practice, there are some conditions that differ from typical rental agreements in Mumbai and could impact your tenancy experience.",
-  highlights: [
-    {
-      label: 'Safe',
-      emoji: '✅',
-      color: 'success',
-      text: 'Standard 11-month lease agreement with clear termination conditions and proper legal framework'
-    },
-    {
-      label: 'Safe',
-      emoji: '✅', 
-      color: 'success',
-      text: 'Maintenance responsibilities clearly defined between tenant and landlord'
-    },
-    {
-      label: 'Caution',
-      emoji: '⚠️',
-      color: 'warning',
-      text: 'Security deposit is 3 months rent (₹75,000) - higher than typical 2 months standard'
-    },
-    {
-      label: 'Caution',
-      emoji: '⚠️',
-      color: 'warning', 
-      text: 'Rent increase clause allows 10% annual increment - verify market rates'
-    },
-    {
-      label: 'Risk',
-      emoji: '❌',
-      color: 'destructive',
-      text: 'Strict no-pets policy with ₹10,000 penalty - no exceptions mentioned'
-    },
-    {
-      label: 'Risk',
-      emoji: '❌',
-      color: 'destructive',
-      text: 'Early termination requires 2 months notice plus penalty equivalent to 1 month rent'
-    }
-  ],
-  explanations: [
-    {
-      clause: "The tenant shall not keep any pets in the premises without prior written consent",
-      meaning: "You cannot have any animals like dogs, cats, birds, or any other pets in the apartment unless the landlord gives you written permission",
-      example: "If you get a dog later without permission, you could be fined ₹10,000 and may face eviction proceedings"
-    },
-    {
-      clause: "Security deposit equivalent to three months advance rent shall be paid",
-      meaning: "You must pay ₹75,000 (3 × ₹25,000) as security deposit before moving in, which is refundable at the end of tenancy",
-      example: "Most Mumbai rentals ask for 2 months deposit (₹50,000), so this is ₹25,000 extra that you need to arrange"
-    },
-    {
-      clause: "Annual rent increment of 10% shall be applicable from the second year",
-      meaning: "Your rent will increase by 10% each year, so ₹25,000 becomes ₹27,500 in year 2",
-      example: "Check if 10% is reasonable - typical Mumbai increments are 5-8% annually"
-    }
-  ],
-  actions: [
-    "Arrange ₹75,000 security deposit (3 months) before moving in",
-    "Confirm you can commit to 11 months without keeping any pets",
-    "Verify that 10% annual rent increase is acceptable for your budget",
-    "Take detailed photos/videos of apartment condition before moving in",
-    "Keep all rent payment receipts and maintain payment records",
-    "Understand early termination costs (2 months notice + 1 month penalty)"
-  ]
-};
+import { parseDocument, analyzeDocument } from '@/utils/documentParser';
 
 const Index = () => {
   const [currentDocument, setCurrentDocument] = useState<File | null>(null);
+  const [documentContent, setDocumentContent] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
   const [baseAnalysis, setBaseAnalysis] = useState<DocumentAnalysis | null>(null);
@@ -92,26 +26,34 @@ const Index = () => {
   const { settings, toggleSummaryLanguage, toggleVoiceLanguage, setMode } = useAppSettings();
   const { isPlaying, toggle: toggleVoice, speak, stop } = useVoiceMode(settings.voiceLanguage);
 
-  // Handle file upload - completely clear all previous data
+  // Handle file upload - parse document and clear all previous data
   const handleFileSelect = useCallback(async (file: File) => {
     setError(null);
     
     // IMMEDIATELY clear ALL previous document data
     setCurrentDocument(null);
+    setDocumentContent('');
     setAnalysis(null);
     setBaseAnalysis(null);
     setVoiceModeEnabled(false);
     stop(); // Stop any ongoing voice
     
-    // Add loading delay to prevent overlap
     setIsProcessing(true);
     
-    // Short delay to ensure state is cleared
-    setTimeout(() => {
+    try {
+      // Parse the document content
+      const content = await parseDocument(file);
+      
+      // Set the new document and content
       setCurrentDocument(file);
+      setDocumentContent(content);
       setIsProcessing(false);
       setShowVoiceSetup(true);
-    }, 500);
+    } catch (parseError) {
+      console.error('Document parsing failed:', parseError);
+      setError(parseError instanceof Error ? parseError.message : 'Failed to parse document');
+      setIsProcessing(false);
+    }
   }, [stop]);
 
   // Handle file upload errors
@@ -122,29 +64,24 @@ const Index = () => {
   }, []);
 
   // Handle voice setup completion - generate fresh analysis for current document
-  const handleVoiceSetupComplete = useCallback((enableVoice: boolean, language?: string) => {
+  const handleVoiceSetupComplete = useCallback(async (enableVoice: boolean, language?: string) => {
     setShowVoiceSetup(false);
     setVoiceModeEnabled(enableVoice);
     if (language && language !== settings.voiceLanguage) {
       toggleVoiceLanguage();
     }
     
-    // Start processing with current document
-    if (!currentDocument) {
-      setError("No document found. Please upload again.");
+    // Start processing with current document content
+    if (!currentDocument || !documentContent) {
+      setError("No document content found. Please upload again.");
       return;
     }
     
     setIsProcessing(true);
     
-    // Generate fresh analysis for the current document
-    const timer = setTimeout(() => {
-      // Create fresh analysis (in real app, this would process currentDocument)
-      const freshAnalysis = {
-        ...mockAnalysis,
-        // Add document name to verify it's fresh
-        overview: `Document: ${currentDocument.name}. ${mockAnalysis.overview}`
-      };
+    try {
+      // Generate fresh analysis from the actual document content
+      const freshAnalysis = await analyzeDocument(documentContent, currentDocument.name);
       
       setBaseAnalysis(freshAnalysis);
       const translatedAnalysis = translateAnalysis(freshAnalysis, settings.summaryLanguage, settings.mode);
@@ -165,13 +102,18 @@ const Index = () => {
           behavior: 'smooth' 
         });
       }, 500);
-    }, 2000); // Reduced time for better UX
-  }, [settings.summaryLanguage, settings.mode, settings.voiceLanguage, toggleVoiceLanguage, currentDocument, speak]);
+    } catch (analysisError) {
+      console.error('Document analysis failed:', analysisError);
+      setError(analysisError instanceof Error ? analysisError.message : 'Failed to analyze document');
+      setIsProcessing(false);
+    }
+  }, [settings.summaryLanguage, settings.mode, settings.voiceLanguage, toggleVoiceLanguage, currentDocument, documentContent, speak]);
   
   // Handle back to upload - completely reset all state
   const handleBackToUpload = useCallback(() => {
     // Clear ALL document data and reset to initial state
     setCurrentDocument(null);
+    setDocumentContent('');
     setAnalysis(null);
     setBaseAnalysis(null);
     setVoiceModeEnabled(false);
@@ -343,6 +285,7 @@ const Index = () => {
               documentAnalysis={analysis}
               voiceEnabled={voiceModeEnabled && isPlaying}
               currentDocument={currentDocument}
+              documentContent={documentContent}
             />
 
             {/* Floating Action Buttons */}

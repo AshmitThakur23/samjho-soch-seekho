@@ -9,9 +9,10 @@ interface ChatBotProps {
   voiceEnabled?: boolean;
   onSpeechInput?: (text: string) => void;
   currentDocument?: File | null;
+  documentContent?: string;
 }
 
-export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInput, currentDocument }: ChatBotProps) => {
+export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInput, currentDocument, documentContent = '' }: ChatBotProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -21,7 +22,7 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
   // Clear chat history when document changes
   useEffect(() => {
     setMessages([]);
-  }, [currentDocument]);
+  }, [currentDocument, documentContent]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -62,7 +63,7 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
     setIsLoading(true);
 
     // Check if current document is available
-    if (!currentDocument || !documentAnalysis) {
+    if (!currentDocument || !documentAnalysis || !documentContent) {
       const noDocResponse = questionLanguage === 'HI' 
         ? 'कृपया पहले एक दस्तावेज़ अपलोड करें।'
         : 'Please upload a document first.';
@@ -76,15 +77,16 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
       let response = '';
       
       // Generate contextual response based on CURRENT document content in the same language as question
+      const contentPreview = documentContent.substring(0, 100);
       const contextualResponses = {
         EN: [
           `Based on the current document (${currentDocument.name}): ${userMessage.toLowerCase().includes('risk') ? 'the main risks include: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}.`,
-          `From this document: ${userMessage.toLowerCase().includes('deposit') ? 'the security deposit is ₹75,000 (3 months rent)' : 'this is a standard 11-month lease with specific conditions'}.`,
+          `From this document: ${userMessage.toLowerCase().includes('content') ? `The document contains: ${contentPreview}...` : documentAnalysis.overview.split('.')[0]}.`,
           `Regarding your question about ${currentDocument.name}: ${documentAnalysis.explanations[0]?.meaning || 'The key points are covered in the highlights section.'}`
         ],
         HI: [
           `वर्तमान दस्तावेज़ (${currentDocument.name}) के आधार पर: ${userMessage.includes('जोखिम') || userMessage.includes('खतरा') ? 'मुख्य जोखिम हैं: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}।`,
-          `इस दस्तावेज़ से: ${userMessage.includes('जमा') || userMessage.includes('डिपॉजिट') ? 'सिक्यूरिटी डिपॉजिट ₹75,000 है (3 महीने का किराया)' : 'यह एक मानक 11-महीने का लीज़ है'}।`,
+          `इस दस्तावेज़ से: ${userMessage.includes('सामग्री') ? `दस्तावेज़ में है: ${contentPreview}...` : documentAnalysis.overview.split('.')[0]}।`,
           `${currentDocument.name} के बारे में आपके प्रश्न के लिए: ${documentAnalysis.explanations[0]?.meaning || 'मुख्य बिंदु हाइलाइट्स में शामिल हैं।'}`
         ]
       };
