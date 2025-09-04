@@ -9,6 +9,7 @@ export interface DocumentHighlight {
   emoji: '✅' | '⚠️' | '❌';
   color: 'success' | 'warning' | 'destructive';
   text: string;
+  lineNumber?: number; // optional: which line in the parsed document
 }
 
 export interface DocumentExplanation {
@@ -22,6 +23,7 @@ export interface DocumentAnalysis {
   highlights: DocumentHighlight[];
   explanations: DocumentExplanation[];
   actions: string[];
+  lines?: string[]; // optional: full document split into logical lines/sentences
 }
 
 export interface AppSettings {

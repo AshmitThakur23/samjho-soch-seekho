@@ -47,6 +47,32 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
         </div>
       </div>
 
+      {/* Full Document Lines (line-by-line) */}
+      {analysis.lines && analysis.lines.length > 0 && (
+        <div className="glass-card rounded-xl p-6 mb-6">
+          <h3 className="text-xl font-semibold mb-4 flex items-center space-x-2">
+            <span>🧾</span>
+            <span>All Lines</span>
+          </h3>
+          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-2">
+            {analysis.lines.map((line, idx) => {
+              const highlight = analysis.highlights.find(h => h.lineNumber === idx + 1);
+              const statusLabel = highlight?.label || 'Safe';
+              return (
+                <div key={idx} className="flex items-start gap-3 p-3 rounded-md bg-card-glass/40 border border-border/50">
+                  <div className="w-10 text-right text-muted-foreground">{idx + 1}</div>
+                  <div className="flex-shrink-0 mt-0.5">{getStatusIcon(statusLabel)}</div>
+                  <div className="flex-1">
+                    <div className={`text-xs font-medium mb-1 ${getStatusColor(statusLabel)}`}>{statusLabel}</div>
+                    <p className="text-foreground/90 leading-relaxed">{line}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Highlights Section */}
       <div className="glass-card rounded-xl p-6">
         <h3 className="text-xl font-semibold mb-4 flex items-center space-x-2">

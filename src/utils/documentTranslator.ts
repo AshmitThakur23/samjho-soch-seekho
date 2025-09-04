@@ -93,6 +93,7 @@ export const translateAnalysis = (
       example: t(e.example),
     })),
     actions: analysis.actions.map(a => t(a)),
+    lines: analysis.lines ? analysis.lines.map(t) : undefined,
   };
 
   // Optional readability tweak in Simple mode (truncate long overview only)

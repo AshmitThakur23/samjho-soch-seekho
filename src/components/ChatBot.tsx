@@ -53,62 +53,106 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
     return 'EN';
   };
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
+const handleSend = async () => {
+  if (!input.trim()) return;
 
-    const userMessage = input.trim();
-    const questionLanguage = detectLanguage(userMessage);
-    setInput('');
-    addMessage(userMessage, true, questionLanguage);
-    setIsLoading(true);
+  const userMessage = input.trim();
+  const questionLanguage = detectLanguage(userMessage);
+  setInput('');
+  addMessage(userMessage, true, questionLanguage);
+  setIsLoading(true);
 
-    // Check if current document is available
-    if (!currentDocument || !documentAnalysis || !documentContent) {
-      const noDocResponse = questionLanguage === 'HI' 
-        ? 'कृपया पहले एक दस्तावेज़ अपलोड करें।'
-        : 'Please upload a document first.';
-      addMessage(noDocResponse, false, questionLanguage);
-      setIsLoading(false);
-      return;
+  if (!currentDocument || (!documentAnalysis && !documentContent)) {
+    const noDoc = questionLanguage === 'HI' ? 'कृपया पहले एक दस्तावेज़ अपलोड करें।' : 'Please upload a document first.';
+    addMessage(noDoc, false, questionLanguage);
+    setIsLoading(false);
+    return;
+  }
+
+  // Build searchable lines and optional line-level labels
+  const lines: string[] = (documentAnalysis?.lines && documentAnalysis.lines.length > 0)
+    ? documentAnalysis.lines
+    : toLogicalLines(documentContent || '');
+  const labelsByLine: Record<number, string> = {};
+  documentAnalysis?.highlights?.forEach(h => {
+    if (h.lineNumber) labelsByLine[h.lineNumber] = h.label;
+  });
+
+  // Handle "line N" questions
+  const lineMatch = userMessage.match(/(?:line|लाइन)\s*(\d+)/i);
+  if (lineMatch) {
+    const n = parseInt(lineMatch[1], 10);
+    const text = lines[n - 1];
+    const label = labelsByLine[n] || 'Safe';
+    const resp = questionLanguage === 'HI'
+      ? (text ? `लाइन ${n}: ${text}\nस्थिति: ${label}` : `लाइन ${n} नहीं मिली।`)
+      : (text ? `Line ${n}: ${text}\nStatus: ${label}` : `Line ${n} not found.`);
+    addMessage(resp, false, questionLanguage);
+    setIsLoading(false);
+    return;
+  }
+
+  // Keyword search across lines
+  const results = searchRelevantLines(userMessage, lines, 3);
+  let response = '';
+  if (results.length === 0) {
+    response = questionLanguage === 'HI'
+      ? 'दस्तावेज़ में उपयुक्त जानकारी नहीं मिली। कृपया अलग तरह से पूछें।'
+      : 'Could not find relevant information in the document. Please try rephrasing.';
+  } else {
+    const bullets = results.map(r => `#${r.index + 1}: ${r.text}`).join('\n• ');
+    response = questionLanguage === 'HI'
+      ? `सबसे संबंधित पंक्तियाँ:\n• ${bullets}`
+      : `Most relevant lines:\n• ${bullets}`;
+  }
+
+  addMessage(response, false, questionLanguage);
+
+  if (voiceEnabled && 'speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(response);
+    utterance.lang = questionLanguage === 'HI' ? 'hi-IN' : 'en-US';
+    speechSynthesis.speak(utterance);
+  }
+
+  setIsLoading(false);
+};
+
+// Helpers for ChatBot (local, no network)
+const toLogicalLines = (text: string): string[] => {
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\t/g, ' ').replace(/ +/g, ' ').trim();
+  const chunks = normalized.split(/\n+/).flatMap(block =>
+    block.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean)
+  );
+  const out: string[] = [];
+  for (const c of chunks) {
+    const t = c.replace(/\s{2,}/g, ' ');
+    if (t && t !== out[out.length - 1]) out.push(t);
+  }
+  return out;
+};
+
+const searchRelevantLines = (query: string, lines: string[], topK = 3) => {
+  const q = query.toLowerCase();
+  const tokens = q.match(/[a-zA-Z0-9%₹$-]+/g) || [];
+  const stop = new Set(['what','is','the','a','an','and','or','in','on','to','for','of','hi','line']);
+  const keys = tokens.filter(t => !stop.has(t));
+  const scored = lines.map((text, index) => {
+    const lower = text.toLowerCase();
+    let score = 0;
+    for (const k of keys) {
+      if (lower.includes(k)) score += 2;
+      // numeric search: interest 9.5%, 5000 etc.
+      if (/^\d+$/.test(k) && new RegExp(`\\b${k}\\b`).test(lower)) score += 1.5;
     }
-
-    // Simulate AI response with current document context
-    setTimeout(() => {
-      let response = '';
-      
-      // Generate contextual response based on CURRENT document content in the same language as question
-      const contentPreview = documentContent.substring(0, 100);
-      const contextualResponses = {
-        EN: [
-          `Based on the current document (${currentDocument.name}): ${userMessage.toLowerCase().includes('risk') ? 'the main risks include: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}.`,
-          `From this document: ${userMessage.toLowerCase().includes('content') ? `The document contains: ${contentPreview}...` : documentAnalysis.overview.split('.')[0]}.`,
-          `Regarding your question about ${currentDocument.name}: ${documentAnalysis.explanations[0]?.meaning || 'The key points are covered in the highlights section.'}`
-        ],
-        HI: [
-          `वर्तमान दस्तावेज़ (${currentDocument.name}) के आधार पर: ${userMessage.includes('जोखिम') || userMessage.includes('खतरा') ? 'मुख्य जोखिम हैं: ' + documentAnalysis.highlights.filter(h => h.label === 'Risk').map(h => h.text).join(', ') : documentAnalysis.overview.split('.')[0]}।`,
-          `इस दस्तावेज़ से: ${userMessage.includes('सामग्री') ? `दस्तावेज़ में है: ${contentPreview}...` : documentAnalysis.overview.split('.')[0]}।`,
-          `${currentDocument.name} के बारे में आपके प्रश्न के लिए: ${documentAnalysis.explanations[0]?.meaning || 'मुख्य बिंदु हाइलाइट्स में शामिल हैं।'}`
-        ]
-      };
-      
-      const responseList = contextualResponses[questionLanguage];
-      response = responseList[Math.floor(Math.random() * responseList.length)];
-      
-      // Add timestamp to verify it's fresh
-      response += ` (Analyzed at ${new Date().toLocaleTimeString()})`;
-      
-      addMessage(response, false, questionLanguage);
-      
-      // Auto-speak response if voice is enabled
-      if (voiceEnabled && 'speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(response);
-        utterance.lang = questionLanguage === 'HI' ? 'hi-IN' : 'en-US';
-        speechSynthesis.speak(utterance);
-      }
-      
-      setIsLoading(false);
-    }, 1500);
-  };
+    // small bonus for risk words
+    if (/(penalty|fine|default|termination|interest|rate|fee)/.test(lower)) score += 0.5;
+    return { index, text, score };
+  });
+  return scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK);
+};
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
