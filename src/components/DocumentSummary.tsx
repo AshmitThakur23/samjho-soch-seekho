@@ -53,56 +53,78 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
           <h3 className="text-xl font-semibold mb-4 flex items-center space-x-2">
             <span>📄</span>
             <span>{language === 'HI' ? 'दस्तावेज़ की सामग्री' : 'Document Content'}</span>
+            <span className="text-sm text-muted-foreground">({analysis.lines.length} lines)</span>
           </h3>
-          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-            {analysis.lines.map((line, idx) => {
-              // Skip empty lines
-              if (!line.trim()) return null;
-              
-              const highlight = analysis.highlights.find(h => h.lineNumber === idx + 1);
-              const statusLabel = highlight?.label || 'Safe';
-              const getBgColor = (label: string) => {
-                switch (label) {
-                  case 'Risk': return 'bg-red-50 border-l-4 border-red-500 dark:bg-red-950/20 dark:border-red-600';
-                  case 'Caution': return 'bg-yellow-50 border-l-4 border-yellow-500 dark:bg-yellow-950/20 dark:border-yellow-600';
-                  default: return 'bg-green-50 border-l-4 border-green-500 dark:bg-green-950/20 dark:border-green-600';
-                }
-              };
-              
-              const getTextSize = (line: string) => {
-                // Headers and titles are usually shorter and in caps or have special formatting
-                if (line.length < 50 && (line.includes(':') || line.toUpperCase() === line)) {
-                  return 'text-lg font-semibold text-primary';
-                }
-                return 'text-sm leading-relaxed text-foreground';
-              };
-              
-              return (
-                <div key={idx} className={`p-4 rounded-lg transition-all hover:shadow-sm ${getBgColor(statusLabel)}`}>
-                  <div className="flex items-start gap-3">
-                    <div className="flex items-center gap-2 min-w-fit">
-                      <span className="text-xs font-mono bg-background/60 px-2 py-1 rounded text-muted-foreground">
-                        {idx + 1}
-                      </span>
-                      <div className="flex-shrink-0">{getStatusIcon(statusLabel)}</div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`break-words ${getTextSize(line)}`}>
-                        {line}
-                      </p>
-                      {statusLabel !== 'Safe' && highlight && (
-                        <p className="text-xs mt-2 text-muted-foreground italic">
-                          💡 This line contains {statusLabel.toLowerCase()} content - review carefully
+          
+          {analysis.lines.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No document content available. Please upload a document again.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+              {analysis.lines.map((line, idx) => {
+                // Skip empty lines
+                if (!line || !line.trim()) return null;
+                
+                const highlight = analysis.highlights.find(h => h.lineNumber === idx + 1);
+                const statusLabel = highlight?.label || 'Safe';
+                
+                const getBgColor = (label: string) => {
+                  switch (label) {
+                    case 'Risk': return 'bg-red-50 border-l-4 border-red-500 dark:bg-red-950/20 dark:border-red-600';
+                    case 'Caution': return 'bg-yellow-50 border-l-4 border-yellow-500 dark:bg-yellow-950/20 dark:border-yellow-600';
+                    default: return 'bg-green-50 border-l-4 border-green-500 dark:bg-green-950/20 dark:border-green-600';
+                  }
+                };
+                
+                const getTextStyle = (line: string) => {
+                  // Check if this looks like a header/title
+                  if (line.startsWith('📋') || line.startsWith('📊')) {
+                    return 'text-base font-semibold text-primary';
+                  }
+                  // Check if this looks like structured content
+                  if (line.includes(':') && line.length < 80) {
+                    return 'text-sm font-medium text-foreground';
+                  }
+                  return 'text-sm leading-relaxed text-foreground';
+                };
+                
+                return (
+                  <div key={idx} className={`p-4 rounded-lg transition-all hover:shadow-sm ${getBgColor(statusLabel)}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex items-center gap-2 min-w-fit">
+                        <span className="text-xs font-mono bg-background/60 px-2 py-1 rounded text-muted-foreground border">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-shrink-0">{getStatusIcon(statusLabel)}</div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`break-words ${getTextStyle(line)}`}>
+                          {line}
                         </p>
-                      )}
+                        {statusLabel !== 'Safe' && (
+                          <p className="text-xs mt-2 text-muted-foreground italic">
+                            💡 This line contains {statusLabel.toLowerCase()} content - review carefully
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
+
+      {/* Debug info - temporarily visible */}
+      <div className="glass-card rounded-xl p-4 mb-6 text-xs bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800">
+        <p><strong>Debug Info:</strong></p>
+        <p>Total lines in analysis: {analysis.lines?.length || 0}</p>
+        <p>Lines type: {typeof analysis.lines}</p>
+        <p>Sample lines: {analysis.lines?.slice(0, 3).map((line, i) => `${i+1}: "${line?.substring(0, 50)}..."`).join(' | ') || 'No lines found'}</p>
+        <p>Highlights count: {analysis.highlights?.length || 0}</p>
+      </div>
 
 
       {/* Explanations Section */}
