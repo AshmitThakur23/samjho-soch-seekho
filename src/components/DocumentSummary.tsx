@@ -47,24 +47,42 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
         </div>
       </div>
 
-      {/* Full Document Lines (line-by-line) */}
+      {/* Document Line-by-Line Analysis */}
       {analysis.lines && analysis.lines.length > 0 && (
         <div className="glass-card rounded-xl p-6 mb-6">
           <h3 className="text-xl font-semibold mb-4 flex items-center space-x-2">
-            <span>🧾</span>
-            <span>All Lines</span>
+            <span>📋</span>
+            <span>{language === 'HI' ? 'दस्तावेज़ लाइन विश्लेषण' : 'Document Line Analysis'}</span>
           </h3>
-          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-2">
+          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
             {analysis.lines.map((line, idx) => {
               const highlight = analysis.highlights.find(h => h.lineNumber === idx + 1);
               const statusLabel = highlight?.label || 'Safe';
+              const getBgColor = (label: string) => {
+                switch (label) {
+                  case 'Risk': return 'bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800';
+                  case 'Caution': return 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-800';
+                  default: return 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800';
+                }
+              };
+              
               return (
-                <div key={idx} className="flex items-start gap-3 p-3 rounded-md bg-card-glass/40 border border-border/50">
-                  <div className="w-10 text-right text-muted-foreground">{idx + 1}</div>
-                  <div className="flex-shrink-0 mt-0.5">{getStatusIcon(statusLabel)}</div>
-                  <div className="flex-1">
-                    <div className={`text-xs font-medium mb-1 ${getStatusColor(statusLabel)}`}>{statusLabel}</div>
-                    <p className="text-foreground/90 leading-relaxed">{line}</p>
+                <div key={idx} className={`flex items-start gap-4 p-4 rounded-lg border transition-all hover:shadow-md ${getBgColor(statusLabel)}`}>
+                  <div className="flex flex-col items-center gap-2 min-w-fit">
+                    <div className="bg-background/80 px-3 py-1 rounded-full text-sm font-mono text-muted-foreground border">
+                      {language === 'HI' ? `लाइन ${idx + 1}` : `Line ${idx + 1}`}
+                    </div>
+                    <div className="flex-shrink-0">{getStatusIcon(statusLabel)}</div>
+                    <div className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                      statusLabel === 'Risk' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                      statusLabel === 'Caution' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                      'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    }`}>
+                      {statusLabel}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm leading-relaxed break-words text-foreground">{line}</p>
                   </div>
                 </div>
               );
@@ -73,34 +91,6 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
         </div>
       )}
 
-      {/* Highlights Section */}
-      <div className="glass-card rounded-xl p-6">
-        <h3 className="text-xl font-semibold mb-4 flex items-center space-x-2">
-          <span>🎯</span>
-          <span>Key Highlights</span>
-        </h3>
-        
-        <div className="space-y-4">
-          {analysis.highlights.map((highlight, index) => (
-            <div
-              key={index}
-              className="flex items-start space-x-3 p-4 rounded-lg bg-card-glass/50 border border-border/50"
-            >
-              <div className="flex-shrink-0 mt-0.5">
-                {getStatusIcon(highlight.label)}
-              </div>
-              <div className="flex-1">
-                <div className={`font-medium ${getStatusColor(highlight.label)}`}>
-                  {highlight.emoji} {highlight.label}
-                </div>
-                <p className="mt-1 text-foreground/90">
-                  {highlight.text}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Explanations Section */}
       {analysis.explanations.length > 0 && (

@@ -92,18 +92,24 @@ const handleSend = async () => {
     return;
   }
 
-  // Keyword search across lines
-  const results = searchRelevantLines(userMessage, lines, 3);
+  // Enhanced keyword search with context
+  const results = searchRelevantLines(userMessage, lines, 5);
   let response = '';
+  
   if (results.length === 0) {
     response = questionLanguage === 'HI'
       ? 'दस्तावेज़ में उपयुक्त जानकारी नहीं मिली। कृपया अलग तरह से पूछें।'
       : 'Could not find relevant information in the document. Please try rephrasing.';
   } else {
-    const bullets = results.map(r => `#${r.index + 1}: ${r.text}`).join('\n• ');
-    response = questionLanguage === 'HI'
-      ? `सबसे संबंधित पंक्तियाँ:\n• ${bullets}`
-      : `Most relevant lines:\n• ${bullets}`;
+    // Get detailed answer based on the question context
+    const topResult = results[0];
+    const contextLines = getContextLines(lines, topResult.index, 2);
+    
+    if (questionLanguage === 'HI') {
+      response = `आपके प्रश्न का उत्तर:\n\n${contextLines.join('\n\n')}\n\n(लाइन ${topResult.index + 1} और आसपास की लाइनों से)`;
+    } else {
+      response = `Answer to your question:\n\n${contextLines.join('\n\n')}\n\n(From line ${topResult.index + 1} and surrounding context)`;
+    }
   }
 
   addMessage(response, false, questionLanguage);
@@ -134,24 +140,44 @@ const toLogicalLines = (text: string): string[] => {
 const searchRelevantLines = (query: string, lines: string[], topK = 3) => {
   const q = query.toLowerCase();
   const tokens = q.match(/[a-zA-Z0-9%₹$-]+/g) || [];
-  const stop = new Set(['what','is','the','a','an','and','or','in','on','to','for','of','hi','line']);
-  const keys = tokens.filter(t => !stop.has(t));
+  const stop = new Set(['what','is','the','a','an','and','or','in','on','to','for','of','hi','line','explain','tell','me','about']);
+  const keys = tokens.filter(t => !stop.has(t) && t.length > 2);
+  
   const scored = lines.map((text, index) => {
     const lower = text.toLowerCase();
     let score = 0;
+    
+    // Exact phrase matching gets highest score
+    if (lower.includes(q)) score += 10;
+    
+    // Individual keyword matching
     for (const k of keys) {
-      if (lower.includes(k)) score += 2;
-      // numeric search: interest 9.5%, 5000 etc.
-      if (/^\d+$/.test(k) && new RegExp(`\\b${k}\\b`).test(lower)) score += 1.5;
+      if (lower.includes(k)) {
+        // Longer keywords get higher scores
+        score += k.length > 4 ? 3 : 2;
+      }
+      // Numeric search: interest 9.5%, 5000 etc.
+      if (/^\d+(\.\d+)?$/.test(k) && new RegExp(`\\b${k}\\b`).test(lower)) score += 2;
     }
-    // small bonus for risk words
-    if (/(penalty|fine|default|termination|interest|rate|fee)/.test(lower)) score += 0.5;
+    
+    // Context-based scoring
+    if (/(loan|interest|rate|amount|payment|emi|tenure|ltv)/.test(lower)) score += 1;
+    if (/(penalty|fine|default|termination|fee|charge)/.test(lower)) score += 1;
+    if (/(insurance|requirement|document|condition)/.test(lower)) score += 1;
+    
     return { index, text, score };
   });
+  
   return scored
     .filter(s => s.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
+};
+
+const getContextLines = (lines: string[], centerIndex: number, contextSize: number = 2) => {
+  const start = Math.max(0, centerIndex - contextSize);
+  const end = Math.min(lines.length, centerIndex + contextSize + 1);
+  return lines.slice(start, end);
 };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
