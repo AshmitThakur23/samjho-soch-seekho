@@ -106,20 +106,71 @@ export const analyzeDocument = async (content: string, fileName: string): Promis
   return { overview, highlights, explanations, actions, lines };
 };
 
-// Split into logical lines (newline or sentence boundary)
+// Split into logical lines with better structure and table detection
 const toLogicalLines = (text: string): string[] => {
-  const chunks = text.split(/\n+/).flatMap(block =>
-    block
-      .split(/(?<=[.!?])\s+/)
-      .map(s => s.trim())
-      .filter(Boolean)
-  );
-  // Deduplicate consecutive duplicates and trim long whitespace
-  const cleaned: string[] = [];
-  for (const s of chunks) {
-    const t = s.replace(/\s{2,}/g, ' ').trim();
-    if (t && t !== cleaned[cleaned.length - 1]) cleaned.push(t);
+  // Split by multiple newlines first to get sections
+  const sections = text.split(/\n\s*\n/);
+  const logicalLines: string[] = [];
+  
+  for (const section of sections) {
+    const lines = section.split('\n').map(line => line.trim()).filter(Boolean);
+    
+    if (lines.length === 0) continue;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Skip very short lines that are likely artifacts
+      if (line.length < 3) continue;
+      
+      // Detect table-like content (multiple spaces or tabs between words)
+      if (line.includes('\t') || /\s{3,}/.test(line)) {
+        // Clean up table formatting
+        const tableRow = line.replace(/\s+/g, ' | ').replace(/^\|\s*/, '').replace(/\s*\|$/, '');
+        logicalLines.push(`📊 Table: ${tableRow}`);
+        continue;
+      }
+      
+      // Detect headers/titles (short lines with colons, all caps, or standalone)
+      if ((line.length < 60 && line.includes(':')) || 
+          (line.length < 100 && line === line.toUpperCase() && line.length > 5) ||
+          (line.length < 50 && !line.includes('.') && !line.includes(',') && line.length > 10)) {
+        logicalLines.push(`📋 ${line}`);
+        continue;
+      }
+      
+      // For long paragraphs, split by sentences but keep them readable
+      if (line.length > 200 && line.includes('.')) {
+        const sentences = line.split(/(?<=[.!?])\s+/);
+        let currentChunk = '';
+        
+        for (const sentence of sentences) {
+          if (currentChunk.length + sentence.length > 180 && currentChunk) {
+            logicalLines.push(currentChunk.trim());
+            currentChunk = sentence;
+          } else {
+            currentChunk += (currentChunk ? ' ' : '') + sentence;
+          }
+        }
+        
+        if (currentChunk.trim()) {
+          logicalLines.push(currentChunk.trim());
+        }
+      } else {
+        logicalLines.push(line);
+      }
+    }
   }
+  
+  // Remove duplicates and empty lines
+  const cleaned: string[] = [];
+  for (const line of logicalLines) {
+    const trimmed = line.trim();
+    if (trimmed && trimmed !== cleaned[cleaned.length - 1]) {
+      cleaned.push(trimmed);
+    }
+  }
+  
   return cleaned;
 };
 
