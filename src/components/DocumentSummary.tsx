@@ -99,7 +99,7 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
                         <div className="flex-shrink-0">{getStatusIcon(statusLabel)}</div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`break-words ${getTextStyle(line)}`}>
+                        <p className={`whitespace-pre-wrap break-words ${getTextStyle(line)}`}>
                           {line}
                         </p>
                         {statusLabel !== 'Safe' && (

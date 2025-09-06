@@ -58,7 +58,7 @@ const enToHiMap: Record<string, string> = {
   risk: 'जोखिम',
 };
 
-const translateTextToHindi = (text: string): string => {
+export const translateTextToHindi = (text: string): string => {
   if (!text) return text;
   let out = text;
   

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Mic } from 'lucide-react';
 import { ChatMessage, Language, DocumentAnalysis } from '@/types';
 import { cn } from '@/lib/utils';
+import { translateTextToHindi } from '@/utils/documentTranslator';
 
 interface ChatBotProps {
   language: Language;
@@ -53,6 +54,71 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
     return 'EN';
   };
 
+  // Extract requested line number from queries like:
+  // "line 9", "give me 9 line", "explain line no 5", "लाइन 7", "7 लाइन"
+  function extractLineNumber(text: string): number | null {
+    const t = text.toLowerCase();
+    // Pattern A: line ... number
+    let m = t.match(/(?:line(?:\s*no\.?|\s*number)?|लाइन|पंक्ति)\s*[:#-]?\s*(\d{1,5})/i);
+    if (m) return parseInt(m[1], 10);
+    // Pattern B: number ... line
+    m = t.match(/(\d{1,5})\s*(?:line|लाइन|पंक्ति)/i);
+    if (m) return parseInt(m[1], 10);
+    // Pattern C: single small number mentioned in a short query
+    const nums = t.match(/\d{1,5}/g);
+    if (nums && nums.length === 1 && t.length < 40) return parseInt(nums[0], 10);
+    return null;
+  }
+
+  // Create a simple, varied explanation with examples
+  function makeExplanation(text: string, label: string, lang: Language): string {
+    const simplified = text
+      .replace(/\bnotwithstanding\b/gi, lang === 'HI' ? 'इसके बावजूद' : 'despite')
+      .replace(/\bshall\b/gi, lang === 'HI' ? 'अवश्य करेगा/करनी होगी' : 'must')
+      .replace(/\bhereby\b/gi, '')
+      .replace(/\bthereof\b/gi, lang === 'HI' ? 'उसका/उसकी' : 'of it');
+
+    // Detect numbers, % and time windows for a tiny example
+    const perc = text.match(/(\d{1,3})(?:\.\d+)?\s*%/);
+    const time = text.match(/(\d{1,4})\s*(day|days|month|months|year|years|दिन|महीना|महीने|साल)/i);
+
+    const introEN = ['In simple words:', 'Put simply:', 'Plainly:', 'Easy version:'];
+    const introHI = ['सरल भाषा में:', 'आसान शब्दों में:', 'सीधे शब्दों में:', 'समझने लायक तरीके से:'];
+    const intro = lang === 'HI' ? introHI : introEN;
+    const introLine = intro[Math.floor((Date.now()/1000) % intro.length)];
+
+    const statusEN = label === 'Risk' ? 'This could be risky.' : label === 'Caution' ? 'Be careful here.' : 'Looks safe.';
+    const statusHI = label === 'Risk' ? 'यह जोखिम भरा हो सकता है।' : label === 'Caution' ? 'यहाँ सावधानी रखें।' : 'यह सुरक्षित दिखता है।';
+
+    let example = '';
+    if (perc) {
+      const p = parseFloat(perc[1]);
+      const calc = Math.round(10000 * (p/100));
+      example = lang === 'HI'
+        ? `उदाहरण: यदि आधार राशि ₹10,000 है तो ${p}% का मतलब ₹${calc} होगा।`
+        : `Example: If the base amount is ₹10,000, ${p}% means ₹${calc}.`;
+    } else if (time) {
+      example = lang === 'HI'
+        ? `उदाहरण: यदि आज से ${time[1]} ${time[2]} का समय दिया है, तो समय सीमा उसके बाद पूरी होगी।`
+        : `Example: If the clause gives ${time[1]} ${time[2]}, the deadline is after that period.`;
+    }
+
+    const lines = [
+      `${lang === 'HI' ? 'साधारण मतलब' : 'Simple meaning'}: ${simplified}`,
+      `${lang === 'HI' ? 'स्थिति' : 'Status'}: ${lang === 'HI' ? statusHI : statusEN}`,
+    ];
+    if (example) lines.push(example);
+
+    let result = `${introLine}\n- ${lines.join('\n- ')}`;
+    if (lang === 'HI') {
+      try {
+        // Attempt to translate more words for consistency
+        result = translateTextToHindi(result);
+      } catch {}
+    }
+    return result;
+  }
+
 const handleSend = async () => {
   if (!input.trim()) return;
 
@@ -78,16 +144,24 @@ const handleSend = async () => {
     if (h.lineNumber) labelsByLine[h.lineNumber] = h.label;
   });
 
-  // Handle "line N" questions
-  const lineMatch = userMessage.match(/(?:line|लाइन)\s*(\d+)/i);
-  if (lineMatch) {
-    const n = parseInt(lineMatch[1], 10);
-    const text = lines[n - 1];
+  // Handle explicit line-number queries (EN/HIN, flexible word order)
+  const requested = extractLineNumber(userMessage);
+  if (requested !== null) {
+    const n = Math.max(1, Math.min(lines.length, requested));
+    const raw = lines[n - 1];
+    if (!raw) {
+      addMessage(questionLanguage === 'HI' ? `लाइन ${requested} नहीं मिली।` : `Line ${requested} not found.`, false, questionLanguage);
+      setIsLoading(false);
+      return;
+    }
     const label = labelsByLine[n] || 'Safe';
-    const resp = questionLanguage === 'HI'
-      ? (text ? `लाइन ${n}: ${text}\nस्थिति: ${label}` : `लाइन ${n} नहीं मिली।`)
-      : (text ? `Line ${n}: ${text}\nStatus: ${label}` : `Line ${n} not found.`);
-    addMessage(resp, false, questionLanguage);
+    const shown = questionLanguage === 'HI' ? translateTextToHindi(raw) : raw;
+
+    const header = questionLanguage === 'HI' ? `लाइन ${n}: ${shown}` : `Line ${n}: ${shown}`;
+    addMessage(header, false, questionLanguage);
+
+    const expl = makeExplanation(raw, label, questionLanguage);
+    addMessage(expl, false, questionLanguage);
     setIsLoading(false);
     return;
   }
@@ -117,6 +191,11 @@ const handleSend = async () => {
   if (voiceEnabled && 'speechSynthesis' in window) {
     const utterance = new SpeechSynthesisUtterance(response);
     utterance.lang = questionLanguage === 'HI' ? 'hi-IN' : 'en-US';
+    const voices = speechSynthesis.getVoices();
+    const prefer = questionLanguage === 'HI' ? 'hi' : 'en';
+    const candidates = voices.filter(v => v.lang?.toLowerCase().startsWith(prefer));
+    const chosen = candidates.find(v => /hi-?in/i.test(v.lang) || /hindi|india/i.test(v.name)) || candidates[0];
+    if (chosen) utterance.voice = chosen;
     speechSynthesis.speak(utterance);
   }
 
@@ -139,38 +218,33 @@ const toLogicalLines = (text: string): string[] => {
 
 const searchRelevantLines = (query: string, lines: string[], topK = 3) => {
   const q = query.toLowerCase();
-  const tokens = q.match(/[a-zA-Z0-9%₹$-]+/g) || [];
-  const stop = new Set(['what','is','the','a','an','and','or','in','on','to','for','of','hi','line','explain','tell','me','about']);
+  const tokens = q.match(/[\p{L}a-zA-Z0-9%₹$-]+/gu) || [];
+  const stop = new Set(['what','is','the','a','an','and','or','in','on','to','for','of','hi','line','explain','tell','me','about','मुझे','लाइन','समझाओ','बताओ']);
   const keys = tokens.filter(t => !stop.has(t) && t.length > 2);
   
   const scored = lines.map((text, index) => {
     const lower = text.toLowerCase();
     let score = 0;
     
-    // Exact phrase matching gets highest score
-    if (lower.includes(q)) score += 10;
+    if (lower.includes(q)) score += 10; // exact phrase match
     
-    // Individual keyword matching
     for (const k of keys) {
-      if (lower.includes(k)) {
-        // Longer keywords get higher scores
-        score += k.length > 4 ? 3 : 2;
-      }
-      // Numeric search: interest 9.5%, 5000 etc.
-      if (/^\d+(\.\d+)?$/.test(k) && new RegExp(`\\b${k}\\b`).test(lower)) score += 2;
+      if (lower.includes(k)) score += k.length > 4 ? 3 : 2; // keyword match
+      if (/^\d+(\.\d+)?$/.test(k) && new RegExp(`\\b${k}\\b`).test(lower)) score += 2; // numbers
     }
     
-    // Context-based scoring
-    if (/(loan|interest|rate|amount|payment|emi|tenure|ltv)/.test(lower)) score += 1;
-    if (/(penalty|fine|default|termination|fee|charge)/.test(lower)) score += 1;
-    if (/(insurance|requirement|document|condition)/.test(lower)) score += 1;
+    // Basic domain cues
+    if (/(loan|interest|rate|amount|payment|emi|tenure|ltv|clause|term|condition)/.test(lower)) score += 1;
+    if (/(penalty|fine|default|termination|fee|charge|liability|indemn)/.test(lower)) score += 1;
+    if (/(insurance|requirement|document|notice|period)/.test(lower)) score += 1;
     
     return { index, text, score };
   });
   
+  // Prefer unique, diverse top lines to avoid repetitive answers
   return scored
     .filter(s => s.score > 0)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
     .slice(0, topK);
 };
 
