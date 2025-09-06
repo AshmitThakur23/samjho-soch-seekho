@@ -283,7 +283,7 @@ const Index = () => {
             <ChatBot 
               language={settings.summaryLanguage}
               documentAnalysis={analysis}
-              voiceEnabled={voiceModeEnabled && isPlaying}
+              voiceEnabled={voiceModeEnabled}
               currentDocument={currentDocument}
               documentContent={documentContent}
             />

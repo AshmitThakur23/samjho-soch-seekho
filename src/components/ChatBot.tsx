@@ -19,10 +19,12 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const idCounterRef = useRef(0);
 
   // Clear chat history when document changes
   useEffect(() => {
     setMessages([]);
+    idCounterRef.current = 0;
   }, [currentDocument, documentContent]);
 
   const scrollToBottom = () => {
@@ -34,8 +36,9 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
   }, [messages]);
 
   const addMessage = (text: string, isUser: boolean, messageLanguage?: Language) => {
+    idCounterRef.current += 1;
     const newMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${idCounterRef.current}`,
       text,
       isUser,
       timestamp: new Date(),
@@ -319,9 +322,9 @@ const getContextLines = (lines: string[], centerIndex: number, contextSize: numb
           </div>
         )}
         
-        {messages.map((message) => (
+        {messages.map((message, index) => (
           <div
-            key={message.id}
+            key={`${message.id}-${index}`}
             className={cn(
               "flex",
               message.isUser ? "justify-end" : "justify-start"
