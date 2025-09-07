@@ -1,12 +1,15 @@
+import { useMemo, useState } from 'react';
 import { DocumentAnalysis, Language } from '@/types';
-import { CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
-
+import { CheckCircle, AlertTriangle, XCircle, Volume2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 interface DocumentSummaryProps {
   analysis: DocumentAnalysis;
   language: Language;
+  voiceEnabled?: boolean;
+  onSpeakParagraph?: (text: string, lang: Language) => void;
 }
 
-export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) => {
+export const DocumentSummary = ({ analysis, language, voiceEnabled, onSpeakParagraph }: DocumentSummaryProps) => {
   const getStatusIcon = (label: string) => {
     switch (label) {
       case 'Safe':
@@ -33,6 +36,20 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
     }
   };
 
+  const [view, setView] = useState<'summary' | 'full'>('full');
+
+  const explanationByIndex = useMemo(() => {
+    const map = new Map<number, { meaning: string; example: string }>();
+    analysis.explanations.forEach((e) => {
+      const m = e.clause.match(/(Line|लाइन|अनुच्छेद|Paragraph|पैराग्राफ)\s*(\d{1,5})/i);
+      if (m) {
+        const n = parseInt(m[2], 10);
+        if (!isNaN(n)) map.set(n, { meaning: e.meaning, example: e.example });
+      }
+    });
+    return map;
+  }, [analysis.explanations]);
+
   return (
     <div className="space-y-6" id="document-summary">
       {/* Overview Section */}
@@ -47,28 +64,41 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
         </div>
       </div>
 
-      {/* Document Content Analysis */}
+      {/* Document Paragraphs */}
       {analysis.lines && analysis.lines.length > 0 && (
         <div className="glass-card rounded-xl p-6 mb-6">
-          <h3 className="text-xl font-semibold mb-4 flex items-center space-x-2">
-            <span>📄</span>
-            <span>{language === 'HI' ? 'दस्तावेज़ की सामग्री' : 'Document Content'}</span>
-            <span className="text-sm text-muted-foreground">({analysis.lines.length} lines)</span>
-          </h3>
-          
-          {analysis.lines.length === 0 ? (
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold flex items-center space-x-2">
+              <span>📄</span>
+              <span>{language === 'HI' ? 'दस्तावेज़ के अनुच्छेद' : 'Document Paragraphs'}</span>
+              <span className="text-sm text-muted-foreground">({analysis.lines.length})</span>
+            </h3>
+            <Tabs value={view} onValueChange={(v) => setView(v as 'summary' | 'full')}>
+              <TabsList>
+                <TabsTrigger value="summary">{language === 'HI' ? 'सारांश' : 'Summary'}</TabsTrigger>
+                <TabsTrigger value="full">{language === 'HI' ? 'पूरा पाठ' : 'Full text'}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
+          {(view === 'summary'
+            ? analysis.lines.map((line, idx) => ({ line, idx })).filter(({ idx }) => (analysis.highlights.find(h => h.lineNumber === idx + 1)?.label || 'Safe') !== 'Safe')
+            : analysis.lines.map((line, idx) => ({ line, idx }))
+          ).length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>No document content available. Please upload a document again.</p>
+              <p>{language === 'HI' ? 'कोई सामग्री उपलब्ध नहीं है।' : 'No document content available.'}</p>
             </div>
           ) : (
             <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-              {analysis.lines.map((line, idx) => {
-                // Skip empty lines
+              {(view === 'summary'
+                ? analysis.lines.map((line, idx) => ({ line, idx })).filter(({ idx }) => (analysis.highlights.find(h => h.lineNumber === idx + 1)?.label || 'Safe') !== 'Safe')
+                : analysis.lines.map((line, idx) => ({ line, idx }))
+              ).map(({ line, idx }) => {
                 if (!line || !line.trim()) return null;
-                
                 const highlight = analysis.highlights.find(h => h.lineNumber === idx + 1);
                 const statusLabel = highlight?.label || 'Safe';
-                
+                const emoji = (highlight as any)?.emoji || (statusLabel === 'Risk' ? '❌' : statusLabel === 'Caution' ? '⚠️' : '✅');
+
                 const getBgColor = (label: string) => {
                   switch (label) {
                     case 'Risk': return 'bg-red-50 border-l-4 border-red-500 dark:bg-red-950/20 dark:border-red-600';
@@ -78,19 +108,38 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
                 };
                 
                 const getTextStyle = (line: string) => {
-                  // Check if this looks like a header/title
                   if (line.startsWith('📋') || line.startsWith('📊')) {
                     return 'text-base font-semibold text-primary';
                   }
-                  // Check if this looks like structured content
                   if (line.includes(':') && line.length < 80) {
                     return 'text-sm font-medium text-foreground';
                   }
                   return 'text-sm leading-relaxed text-foreground';
                 };
-                
+
+                const explanation = explanationByIndex.get(idx + 1);
+
+                const speakText = `${emoji} ${statusLabel}: ${line}`;
+
                 return (
-                  <div key={idx} className={`p-4 rounded-lg transition-all hover:shadow-sm ${getBgColor(statusLabel)}`}>
+                  <div
+                    key={idx}
+                    className={`p-4 rounded-lg transition-all hover:shadow-sm ${getBgColor(statusLabel)} cursor-pointer`}
+                    role="button"
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && (window as any).speechSynthesis && speakText) {
+                        // Delegate to parent if provided, else speak directly
+                        if (typeof (onSpeakParagraph) === 'function') {
+                          onSpeakParagraph(speakText, language);
+                        } else if ('speechSynthesis' in window) {
+                          const u = new SpeechSynthesisUtterance(speakText);
+                          u.lang = language === 'HI' ? 'hi-IN' : 'en-US';
+                          speechSynthesis.cancel();
+                          speechSynthesis.speak(u);
+                        }
+                      }
+                    }}
+                  >
                     <div className="flex items-start gap-3">
                       <div className="flex items-center gap-2 min-w-fit">
                         <span className="text-xs font-mono bg-background/60 px-2 py-1 rounded text-muted-foreground border">
@@ -102,11 +151,17 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
                         <p className={`whitespace-pre-wrap break-words ${getTextStyle(line)}`}>
                           {line}
                         </p>
-                        {statusLabel !== 'Safe' && (
-                          <p className="text-xs mt-2 text-muted-foreground italic">
-                            💡 This line contains {statusLabel.toLowerCase()} content - review carefully
-                          </p>
+                        {explanation && (
+                          <div className="text-xs mt-2 text-muted-foreground">
+                            <p><strong>{language === 'HI' ? 'मतलब' : 'Meaning'}:</strong> {explanation.meaning}</p>
+                            {explanation.example && (
+                              <p className="mt-1"><strong>{language === 'HI' ? 'उदाहरण' : 'Example'}:</strong> {explanation.example}</p>
+                            )}
+                          </div>
                         )}
+                      </div>
+                      <div className="opacity-70 ml-2">
+                        <Volume2 className="w-5 h-5" />
                       </div>
                     </div>
                   </div>
@@ -116,16 +171,6 @@ export const DocumentSummary = ({ analysis, language }: DocumentSummaryProps) =>
           )}
         </div>
       )}
-
-      {/* Debug info - temporarily visible */}
-      <div className="glass-card rounded-xl p-4 mb-6 text-xs bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800">
-        <p><strong>Debug Info:</strong></p>
-        <p>Total lines in analysis: {analysis.lines?.length || 0}</p>
-        <p>Lines type: {typeof analysis.lines}</p>
-        <p>Sample lines: {analysis.lines?.slice(0, 3).map((line, i) => `${i+1}: "${line?.substring(0, 50)}..."`).join(' | ') || 'No lines found'}</p>
-        <p>Highlights count: {analysis.highlights?.length || 0}</p>
-      </div>
-
 
       {/* Explanations Section */}
       {analysis.explanations.length > 0 && (

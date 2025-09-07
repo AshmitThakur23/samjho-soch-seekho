@@ -57,21 +57,21 @@ export const ChatBot = ({ language, documentAnalysis, voiceEnabled, onSpeechInpu
     return 'EN';
   };
 
-  // Extract requested line number from queries like:
-  // "line 9", "give me 9 line", "explain line no 5", "लाइन 7", "7 लाइन"
-  function extractLineNumber(text: string): number | null {
-    const t = text.toLowerCase();
-    // Pattern A: line ... number
-    let m = t.match(/(?:line(?:\s*no\.?|\s*number)?|लाइन|पंक्ति)\s*[:#-]?\s*(\d{1,5})/i);
-    if (m) return parseInt(m[1], 10);
-    // Pattern B: number ... line
-    m = t.match(/(\d{1,5})\s*(?:line|लाइन|पंक्ति)/i);
-    if (m) return parseInt(m[1], 10);
-    // Pattern C: single small number mentioned in a short query
-    const nums = t.match(/\d{1,5}/g);
-    if (nums && nums.length === 1 && t.length < 40) return parseInt(nums[0], 10);
-    return null;
-  }
+// Extract requested paragraph/line number from queries like:
+// "paragraph 4", "line 9", "explain para 5", "पैराग्राफ 7", "अनुच्छेद 3"
+function extractLineNumber(text: string): number | null {
+  const t = text.toLowerCase();
+  // Pattern A: (paragraph|para|line|पैराग्राफ|अनुच्छेद|लाइन|पंक्ति) ... number
+  let m = t.match(/(?:paragraph|para|line|पैराग्राफ|अनुच्छेद|लाइन|पंक्ति)\s*(?:no\.?|number)?\s*[:#-]?\s*(\d{1,5})/i);
+  if (m) return parseInt(m[1], 10);
+  // Pattern B: number ... (paragraph|para|line|...)
+  m = t.match(/(\d{1,5})\s*(?:paragraph|para|line|पैराग्राफ|अनुच्छेद|लाइन|पंक्ति)/i);
+  if (m) return parseInt(m[1], 10);
+  // Pattern C: single small number mentioned in a short query
+  const nums = t.match(/\d{1,5}/g);
+  if (nums && nums.length === 1 && t.length < 40) return parseInt(nums[0], 10);
+  return null;
+}
 
   // Create a simple, varied explanation with examples
   function makeExplanation(text: string, label: string, lang: Language): string {
@@ -160,13 +160,13 @@ const handleSend = async () => {
     const label = labelsByLine[n] || 'Safe';
     const shown = questionLanguage === 'HI' ? translateTextToHindi(raw) : raw;
 
-    const header = questionLanguage === 'HI' ? `लाइन ${n}: ${shown}` : `Line ${n}: ${shown}`;
-    addMessage(header, false, questionLanguage);
+const header = questionLanguage === 'HI' ? `अनुच्छेद ${n}: ${shown}` : `Paragraph ${n}: ${shown}`;
+addMessage(header, false, questionLanguage);
 
-    const expl = makeExplanation(raw, label, questionLanguage);
-    addMessage(expl, false, questionLanguage);
-    setIsLoading(false);
-    return;
+const expl = makeExplanation(raw, label, questionLanguage);
+addMessage(expl, false, questionLanguage);
+setIsLoading(false);
+return;
   }
 
   // Enhanced keyword search with context
@@ -182,11 +182,11 @@ const handleSend = async () => {
     const topResult = results[0];
     const contextLines = getContextLines(lines, topResult.index, 2);
     
-    if (questionLanguage === 'HI') {
-      response = `आपके प्रश्न का उत्तर:\n\n${contextLines.join('\n\n')}\n\n(लाइन ${topResult.index + 1} और आसपास की लाइनों से)`;
-    } else {
-      response = `Answer to your question:\n\n${contextLines.join('\n\n')}\n\n(From line ${topResult.index + 1} and surrounding context)`;
-    }
+if (questionLanguage === 'HI') {
+  response = `आपके प्रश्न का उत्तर:\n\n${contextLines.join('\n\n')}\n\n(अनुच्छेद ${topResult.index + 1} और आसपास के अनुच्छेदों से)`;
+} else {
+  response = `Answer to your question:\n\n${contextLines.join('\n\n')}\n\n(From paragraph ${topResult.index + 1} and surrounding context)`;
+}
   }
 
   addMessage(response, false, questionLanguage);

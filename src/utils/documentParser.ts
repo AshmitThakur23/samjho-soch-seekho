@@ -106,71 +106,74 @@ export const analyzeDocument = async (content: string, fileName: string): Promis
   return { overview, highlights, explanations, actions, lines };
 };
 
-// Split into logical lines with better structure and table detection
+// Split into readable paragraphs (double line breaks or 3–5 sentences per chunk)
 const toLogicalLines = (text: string): string[] => {
-  // Split by multiple newlines first to get sections
-  const sections = text.split(/\n\s*\n/);
-  const logicalLines: string[] = [];
-  
-  for (const section of sections) {
-    const lines = section.split('\n').map(line => line.trim()).filter(Boolean);
-    
-    if (lines.length === 0) continue;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      
-      // Skip very short lines that are likely artifacts
-      if (line.length < 3) continue;
-      
-      // Detect table-like content (multiple spaces or tabs between words)
-      if (line.includes('\t') || /\s{3,}/.test(line)) {
-        // Clean up table formatting
-        const tableRow = line.replace(/\s+/g, ' | ').replace(/^\|\s*/, '').replace(/\s*\|$/, '');
-        logicalLines.push(`📊 Table: ${tableRow}`);
-        continue;
+  const normalized = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\t/g, ' ')
+    .replace(/\u00A0/g, ' ')
+    .replace(/ +/g, ' ')
+    .trim();
+
+  // Primary: split by blank lines (paragraph breaks)
+  let paras = normalized.split(/\n\s*\n+/).map(p => p.trim()).filter(Boolean);
+
+  // Fallback: if the document didn't contain blank lines, group sentences into paragraphs
+  if (paras.length < 3) {
+    const sentences = normalized
+      .split(/(?<=[.!?])\s+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const grouped: string[] = [];
+    let current: string[] = [];
+
+    for (const s of sentences) {
+      current.push(s);
+      const charLen = current.join(' ').length;
+      // create a paragraph every ~3–5 sentences or when long enough
+      if (current.length >= 4 || charLen > 420) {
+        grouped.push(current.join(' '));
+        current = [];
       }
-      
-      // Detect headers/titles (short lines with colons, all caps, or standalone)
-      if ((line.length < 60 && line.includes(':')) || 
+    }
+    if (current.length) grouped.push(current.join(' '));
+
+    paras = grouped;
+  }
+
+  // Enhance: detect obvious table rows and headers inside each paragraph and keep them as separate entries
+  const logical: string[] = [];
+  for (const p of paras) {
+    const lines = p.split(/\n+/).map(l => l.trim()).filter(Boolean);
+    if (lines.length > 1) {
+      for (const line of lines) {
+        if (line.includes('\t') || /\s{3,}/.test(line)) {
+          const tableRow = line.replace(/\s+/g, ' | ').replace(/^\|\s*/, '').replace(/\s*\|$/, '');
+          logical.push(`📊 Table: ${tableRow}`);
+        } else if (
+          (line.length < 60 && line.includes(':')) ||
           (line.length < 100 && line === line.toUpperCase() && line.length > 5) ||
-          (line.length < 50 && !line.includes('.') && !line.includes(',') && line.length > 10)) {
-        logicalLines.push(`📋 ${line}`);
-        continue;
-      }
-      
-      // For long paragraphs, split by sentences but keep them readable
-      if (line.length > 200 && line.includes('.')) {
-        const sentences = line.split(/(?<=[.!?])\s+/);
-        let currentChunk = '';
-        
-        for (const sentence of sentences) {
-          if (currentChunk.length + sentence.length > 180 && currentChunk) {
-            logicalLines.push(currentChunk.trim());
-            currentChunk = sentence;
-          } else {
-            currentChunk += (currentChunk ? ' ' : '') + sentence;
-          }
+          (line.length < 50 && !line.includes('.') && !line.includes(',') && line.length > 10)
+        ) {
+          logical.push(`📋 ${line}`);
+        } else {
+          logical.push(line);
         }
-        
-        if (currentChunk.trim()) {
-          logicalLines.push(currentChunk.trim());
-        }
-      } else {
-        logicalLines.push(line);
       }
+    } else {
+      logical.push(p);
     }
   }
-  
-  // Remove duplicates and empty lines
+
+  // Deduplicate consecutive entries and prune tiny artifacts
   const cleaned: string[] = [];
-  for (const line of logicalLines) {
-    const trimmed = line.trim();
-    if (trimmed && trimmed !== cleaned[cleaned.length - 1]) {
-      cleaned.push(trimmed);
-    }
+  for (const entry of logical) {
+    const t = entry.trim();
+    if (t.length < 3) continue;
+    if (t !== cleaned[cleaned.length - 1]) cleaned.push(t);
   }
-  
+
   return cleaned;
 };
 
@@ -213,8 +216,8 @@ const buildOverview = (
   const sample = content.slice(0, 160).trim();
   const riskCount = highlights.filter(h => h.label === 'Risk').length;
   const cautionCount = highlights.filter(h => h.label === 'Caution').length;
-  return `Document: ${fileName} • ${wordCount} words • ${lineCount} lines. Summary preview: ${sample}...\n\n` +
-    `Detected ${riskCount} risk and ${cautionCount} caution lines. Review line-by-line highlights below.`;
+  return `Document: ${fileName} • ${wordCount} words • ${lineCount} paragraphs. Summary preview: ${sample}...\n\n` +
+    `Detected ${riskCount} risk and ${cautionCount} caution paragraphs. Review paragraph-by-paragraph highlights below.`;
 };
 
 const buildExplanations = (
