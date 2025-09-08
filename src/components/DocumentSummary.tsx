@@ -112,9 +112,9 @@ export const DocumentSummary = ({ analysis, language, voiceEnabled, onSpeakParag
                     return 'text-base font-semibold text-primary';
                   }
                   if (line.includes(':') && line.length < 80) {
-                    return 'text-sm font-medium text-foreground';
+                    return 'text-sm font-medium text-black';
                   }
-                  return 'text-sm leading-relaxed text-foreground';
+                  return 'text-sm leading-relaxed text-black';
                 };
 
                 const explanation = explanationByIndex.get(idx + 1);
