@@ -1,54 +1,65 @@
 # ✨ Samjho Soch Seekho
 
-Welcome to **Samjho Soch Seekho** – your launchpad for building and learning with modern web technologies!
+> **🚧 Prototype Notice:**  
+> This project is currently a **prototype**. Features, design, and performance are actively being developed and improved.  
+> Feedback, issues, and contributions are welcome!
 
 ---
 
-## 🚀 About This Project
-
-Samjho Soch Seekho is designed to help you build, iterate, and deploy web applications with speed and style. Whether you’re a beginner or an experienced developer, you’ll find everything you need to get started and grow.
+Samjho Soch Seekho is an AI-powered web app that makes documents easy to read, understand, and act upon — in simple English or Hindi. Built for everyone, it turns legalese and jargon into clear, actionable insights.
 
 ---
 
-## 🔧 Quick Start
+## 🧠 How the Web App Works
 
-Choose the workflow that fits you best:
+### 1. **Document Upload & Instant Analysis**
+- **Upload any document** (PDF, DOCX, TXT, etc.) directly into the app.
+- The AI **extracts and summarizes** key points, highlights crucial terms, and simplifies complicated language.
+- Summaries are **generated in both English and Hindi**, ensuring accessibility.
 
-### 1. Use Lovable (The Fastest Way)
+### 2. **Conversational Q&A (ChatBot)**
+- **Ask any question** about the document — type or use your voice (speech-to-text supported).
+- The ChatBot understands context, searches the document, and **answers in simple, everyday language**.
+- **Language toggle:** Instantly switch between English and Hindi for both questions and answers.
+- **Examples and explanations:** If your question involves numbers, dates, or rules, the bot breaks it down with real-world examples.
 
-- Make changes using plain English prompts in an interactive environment.
-- Perfect for rapid prototyping and instant updates.
-- Visit your Lovable project to get started.
-- All changes are auto-committed to your repo.
+### 3. **Risk and Action Highlighting**
+- The AI **flags risky, cautionary, or safe sections** of the document.
+- Each flagged section comes with a simple explanation and what it means for you.
+- **Action steps:** For every key section, the app tells you what you should do next or what to watch out for.
 
-### 2. Local Development (Power User)
+### 4. **Document Summary and Key Points**
+- See a **plain-language summary** covering the essence of the document.
+- Get a **list of main points** and why they matter.
+- For legal, financial, or policy docs, jargon is **translated into clear, actionable advice**.
 
-1. **Clone the repo:**  
-   ```sh
-   git clone <YOUR_GIT_URL>
-   ```
-2. **Enter the directory:**  
-   ```sh
-   cd <YOUR_PROJECT_NAME>
-   ```
-3. **Install dependencies:**  
-   ```sh
-   npm install
-   ```
-4. **Start the dev server:**  
-   ```sh
-   npm run dev
-   ```
+### 5. **Voice & Accessibility Features**
+- **Voice input:** Speak your questions and get spoken answers.
+- **Responsive UI:** Works on mobile, tablet, or desktop.
+- **Multilingual**: English and Hindi support throughout — not just for Q&A but for all summaries and actions.
 
-### 3. Edit on GitHub
+### 6. **Modern User Experience**
+- **Instant feedback:** The interface shows typing indicators and loading states during AI processing.
+- **Clean, distraction-free design:** Powered by React, Tailwind CSS, and shadcn/ui for a delightful user experience.
+- **Privacy-first:** Documents are analyzed in-session; your data stays secure.
 
-- Quick fixes? Edit files directly in the GitHub UI.
-- Just hit the ✏️ Edit button, make your change, and commit.
+---
 
-### 4. Use GitHub Codespaces
+## 🚀 User Journey
 
-- Cloud-based development right from your browser.
-- Go to your repo → Click **Code** → **Codespaces** tab → **New codespace**.
+1. **Open the app** and upload your document.
+2. **Choose your language** (English or Hindi).
+3. **Review the AI-generated summary and flagged sections.**
+4. **Type or speak your question** about any part of the document.
+5. **Read or listen** to the clear answer, with real-life examples.
+6. **Review action items and suggestions** specially tailored for your document.
+7. **Download, print, or share** the summary and answers if needed.
+
+---
+
+## 🔗 Try It Yourself
+
+- **Live Demo:** [Samjho Soch Seekho on Lovable](https://lovable.dev/projects/1779ca2d-62a0-4d6f-8d40-9b38844ccc6d)
 
 ---
 
@@ -62,24 +73,5 @@ Choose the workflow that fits you best:
 
 ---
 
-## ☁️ Deployment
-
-- Deploy effortlessly with Lovable:
-  1. Open your project in Lovable.
-  2. Click **Share → Publish**.
-  3. Your site is live globally – it’s that easy! ✅
-
----
-
-## 🌐 Custom Domain
-
-Want a custom domain? Absolutely!
-
-1. Go to **Project → Settings → Domains** in Lovable.
-2. Click **Connect Domain** and follow the steps.
-3. [Read more in the official docs.](#)
-
----
-
-Enjoy building, learning, and experimenting with Samjho Soch Seekho!  
-Feel free to reach out or contribute. Happy coding! 🚀
+Samjho Soch Seekho bridges the gap between complex paperwork and everyday understanding.  
+**No more confusion, just clarity!**
