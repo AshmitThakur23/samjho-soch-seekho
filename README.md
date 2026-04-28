@@ -421,13 +421,33 @@ git push origin feature/amazing-feature
 ## 📝 License
 
 ```
-MIT License — Copyright (c) 2026 Ashmit Thakur
+Copyright (c) 2026 Ashmit Thakur. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files, to deal in the Software
-without restriction, including without limitation the rights to use, copy,
-modify, merge, publish, distribute, sublicense, and/or sell copies.
-```
+This repository is provided for educational and reference purposes only.
+
+PERMITTED:
+
+You may view and download the code for personal learning.
+You may fork this repository on GitHub.
+You may submit issues, suggestions, and pull requests.
+
+RESTRICTIONS:
+
+You may NOT use this code in any personal, academic, or commercial project.
+You may NOT publish, distribute, or re-upload this code (in whole or in part).
+You may NOT use this code to build or showcase your own applications.
+You may NOT claim this code as your own work.
+
+ATTRIBUTION:
+If you are explicitly permitted to share any part of this code, you must give clear credit at the beginning:
+
+"Original code by Ashmit Thakur (2026)"
+
+NO LICENSE:
+Only the permissions listed above are allowed. Any other use is strictly prohibited.
+
+ENFORCEMENT:
+If you violate these terms, the copyright holder may take appropriate legal action.
 
 ---
 
